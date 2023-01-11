@@ -1,3 +1,14 @@
+// import { i18n } from '@osd/i18n';
+// import { IEmbeddable } from '../../../../src/plugins/dashboard/public/embeddable_plugin';
+// import {
+//   DASHBOARD_CONTAINER_TYPE,
+//   DashboardContainer,
+// } from '../../../../src/plugins/dashboard/public';
+// import { getContextMenuData as getMenuData } from '../utils/contextMenu/getContextMenuData';
+// import { IncompatibleActionError, createAction } from '../../../../src/plugins/ui_actions/public';
+// import { isReferenceOrValueEmbeddable } from '../../../../src/plugins/embeddable/public';
+
+
 import { i18n } from '@osd/i18n';
 import { IEmbeddable } from '../../../../src/plugins/dashboard/public/embeddable_plugin';
 import {

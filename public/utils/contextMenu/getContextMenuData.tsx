@@ -7,7 +7,7 @@ import {
   EuiContextMenuPanelDescriptor,
 } from '@elastic/eui';
 import { v4 as uuid } from 'uuid';
-import CreateAnomalyDetector from '../../components/contextMenu/CreateAnomalyDetector';
+import CreateAnomalyDetector from '../../components/ContextMenu/CreateAnomalyDetector/CreateAnomalyDetector';
 import './styles.scss';
 import { GetActionContextMenuDataArgs, Action } from '../../../../../src/plugins/ui_actions/public';
 import FormikWrapper from './FormikWrapper';
