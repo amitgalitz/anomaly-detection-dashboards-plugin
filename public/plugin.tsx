@@ -8,7 +8,7 @@
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
-
+ 
 import {
   AppMountParameters,
   CoreSetup,
@@ -17,24 +17,22 @@ import {
 } from '../../../src/core/public';
 import { CONTEXT_MENU_TRIGGER } from '../../../src/plugins/embeddable/public';
 import { ACTION_AD, createADAction } from './action/ad_dashboard_action';
-
+import { PLUGIN_NAME } from './utils/constants';
+import { getActions } from './utils/contextMenu/action';
+ 
 declare module '../../../src/plugins/ui_actions/public' {
   export interface ActionContextMapping {
     [ACTION_AD]: {};
   }
 }
-
+ 
 export class AnomalyDetectionOpenSearchDashboardsPlugin
   implements
     Plugin
 {
-  constructor(private readonly initializerContext: PluginInitializerContext) {
-    // can retrieve config from initializerContext
-  }
-
   public setup(core: CoreSetup, plugins) {
     core.application.register({
-      id: 'anomaly-detection-dashboards',
+      id: PLUGIN_NAME,
       title: 'Anomaly Detection',
       category: {
         id: 'opensearch',
@@ -48,15 +46,18 @@ export class AnomalyDetectionOpenSearchDashboardsPlugin
         return renderApp(coreStart, params);
       },
     });
-
-    const adAction = createADAction();
-    const { uiActions } = plugins;
-    uiActions.addTriggerAction(CONTEXT_MENU_TRIGGER, adAction);
+ 
+    // Create context menu actions. Pass core, to access service for flyouts.
+    const actions = getActions({ core });
+ 
+    // Add  actions to uiActions
+    actions.forEach((action) => {
+      plugins.uiActions.addTriggerAction(CONTEXT_MENU_TRIGGER, action);
+    });
   }
-
+ 
   public start() {}
-
+ 
   public stop() {}
 }
-
-
+ 

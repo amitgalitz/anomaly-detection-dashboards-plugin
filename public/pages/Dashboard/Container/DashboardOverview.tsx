@@ -48,6 +48,7 @@ import {
 } from '../../../../server/utils/helpers';
 import { CoreServicesContext } from '../../../components/CoreServices/CoreServices';
 import { CoreStart } from '../../../../../../src/core/public';
+import { BaseVisItem } from './baseVisItem';
 
 export function DashboardOverview() {
   const core = React.useContext(CoreServicesContext) as CoreStart;
@@ -254,6 +255,16 @@ export function DashboardOverview() {
               <EuiFlexItem grow={6}>
                 <AnomaliesDistributionChart
                   selectedDetectors={currentDetectors}
+                />
+              </EuiFlexItem>
+              <EuiFlexItem grow={3}>
+                <AnomalousDetectorsList selectedDetectors={currentDetectors} />
+              </EuiFlexItem>
+            </EuiFlexGroup>
+            <EuiFlexGroup justifyContent="spaceBetween">
+              <EuiFlexItem grow={6}>
+                <BaseVisItem
+                  
                 />
               </EuiFlexItem>
               <EuiFlexItem grow={3}>
