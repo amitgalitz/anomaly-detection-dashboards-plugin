@@ -3,12 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+<<<<<<< HEAD
 import React, { useState, useEffect } from 'react';
 import {
+=======
+import React from 'react';
+import {
+  EuiFlexItem,
+  EuiFlexGroup,
+>>>>>>> 90af74a (register ad as dashboard option)
   EuiFlyoutHeader,
   EuiFlyoutBody,
   EuiFlyoutFooter,
   EuiTitle,
+<<<<<<< HEAD
   EuiButton,
   EuiFormFieldset,
   EuiCheckableCard,
@@ -71,6 +79,16 @@ import {
   getIndices,
   getMappings,
 } from '../../../../public/redux/reducers/opensearch';
+=======
+  EuiSpacer,
+  EuiButton,
+  EuiButtonEmpty,
+  EuiFormFieldset,
+  EuiCheckableCard,
+} from '@elastic/eui';
+import './styles.scss';
+import CreateNew from './CreateNew';
+>>>>>>> 90af74a (register ad as dashboard option)
 
 function AddAnomalyDetector({
   embeddable,
@@ -81,6 +99,7 @@ function AddAnomalyDetector({
   setMode,
   index,
 }) {
+<<<<<<< HEAD
   const dispatch = useDispatch();
   const [queryText, setQueryText] = useState('');
   useEffect(() => {
@@ -742,6 +761,76 @@ function AddAnomalyDetector({
           </Form>
         )}
       </Formik>
+=======
+  const onCreate = () => {
+    console.log(`Current mode: ${mode}`);
+    const event = new Event('createDetector');
+    document.dispatchEvent(event);
+    closeFlyout();
+  };
+
+  return (
+    <div className="add-anomaly-detector">
+      <EuiFlyoutHeader hasBorder>
+        <EuiTitle>
+          <h2 id="add-anomaly-detector__title">Add anomaly detector</h2>
+        </EuiTitle>
+      </EuiFlyoutHeader>
+      <EuiFlyoutBody>
+        <div className="add-anomaly-detector__scroll">
+          <EuiFormFieldset
+            legend={{
+              display: 'hidden',
+              children: (
+                <EuiTitle>
+                  <span>Options to create a new detector or associate an existing detector</span>
+                </EuiTitle>
+              ),
+            }}
+            className="add-anomaly-detector__modes"
+          >
+            {[
+              {
+                id: 'add-anomaly-detector__create',
+                label: 'Create new detector',
+                value: 'create',
+              },
+              {
+                id: 'add-anomaly-detector__existing',
+                label: 'Associate existing detector',
+                value: 'existing',
+              },
+            ].map((option) => (
+              <EuiCheckableCard
+                {...{
+                  ...option,
+                  key: option.id,
+                  name: option.id,
+                  checked: option.value === mode,
+                  onChange: () => setMode(option.value),
+                }}
+              />
+            ))}
+          </EuiFormFieldset>
+          <EuiSpacer size="m" />
+          {mode === 'create' && (
+            <CreateNew {...{ embeddable, closeFlyout, core, services, index }} />
+          )}
+        </div>
+      </EuiFlyoutBody>
+      <EuiFlyoutFooter>
+        <EuiFlexGroup justifyContent="spaceBetween">
+          <EuiFlexItem grow={false}>
+            <EuiButtonEmpty onClick={closeFlyout}>Cancel</EuiButtonEmpty>
+          </EuiFlexItem>
+          <EuiFlexItem grow={false}>
+            <EuiButton onClick={onCreate} fill>
+              {mode === 'existing' ? 'Associate' : 'Create'} detector
+            </EuiButton>
+          </EuiFlexItem>
+        </EuiFlexGroup>
+      </EuiFlyoutFooter>
+>>>>>>> 90af74a (register ad as dashboard option)
     </div>
   );
 }
