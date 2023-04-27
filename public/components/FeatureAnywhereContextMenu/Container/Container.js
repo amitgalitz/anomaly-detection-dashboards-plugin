@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import './styles.scss';
 import AddAnomalyDetector from '../CreateAnomalyDetector';
-import AssociatedDetectors from '../AssociatedDetectors/containers/AssociatedDetectors';
 
 const Container = ({ startingFlyout, ...props }) => {
   const { embeddable } = props;
@@ -11,7 +10,6 @@ const Container = ({ startingFlyout, ...props }) => {
 
   const Flyout = {
     create: AddAnomalyDetector,
-    associated: AssociatedDetectors,
   }[mode];
 
   return (

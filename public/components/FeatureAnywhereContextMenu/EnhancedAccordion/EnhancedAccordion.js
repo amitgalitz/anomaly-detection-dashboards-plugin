@@ -48,10 +48,10 @@ const EnhancedAccordion = ({
             <div className="enhanced-accordion__title">
               <EuiTitle
                 size="s"
-                onClick={onToggle}
+                // onClick={onToggle}
                 role="button"
-                aria-pressed={isOpen ? 'true' : 'false'}
-                aria-expanded={isOpen ? 'true' : 'false'}
+                // aria-pressed={isOpen ? 'true' : 'false'}
+                // aria-expanded={isOpen ? 'true' : 'false'}
               >
                 <h3>{title}</h3>
               </EuiTitle>
