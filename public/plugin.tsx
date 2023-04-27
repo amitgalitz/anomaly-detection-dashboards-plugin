@@ -20,8 +20,11 @@ import { ACTION_AD } from './action/ad_dashboard_action';
 import { PLUGIN_NAME } from './utils/constants';
 import { getActions } from './utils/contextMenu/getActions';
 import { setSavedFeatureAnywhereLoader } from './services';
+<<<<<<< HEAD
 import { overlayAnomaliesFunction } from './expressions/overlay_anomalies';
 import { setClient } from './services';
+=======
+>>>>>>> 14b060b (adding associated detectors flyout)
 
 declare module '../../../src/plugins/ui_actions/public' {
   export interface ActionContextMapping {
