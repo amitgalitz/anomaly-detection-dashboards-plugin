@@ -58,7 +58,6 @@ export class AnomalyDetectionOpenSearchDashboardsPlugin implements Plugin {
     });
 
     // Set the HTTP client so it can be pulled into expression fns to make
-        // Set the HTTP client so it can be pulled into expression fns to make
     // direct server-side calls
     setClient(core.http);
 

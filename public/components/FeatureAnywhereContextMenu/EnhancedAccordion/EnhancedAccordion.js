@@ -28,9 +28,9 @@ const EnhancedAccordion = ({
         iconType="arrowRight"
         aria-label="Expand"
         onClick={onToggle}
-        className={`enhanced-accordion__arrow ${isOpen ? 'enhanced-accordion__arrow--open' : ''} ${
-          isButton ? 'enhanced-accordion__arrow--hidden' : ''
-        }`}
+        className={`enhanced-accordion__arrow ${
+          isOpen ? 'enhanced-accordion__arrow--open' : ''
+        } ${isButton ? 'enhanced-accordion__arrow--hidden' : ''}`}
       />
     </div>
     <div className="enhanced-accordion__title-panel euiPanel euiPanel--borderRadiusNone euiPanel--transparent euiPanel--noShadow euiPanel--noBorder euiSplitPanel__inner">
@@ -38,7 +38,9 @@ const EnhancedAccordion = ({
         <EuiAccordion
           id={id}
           arrowDisplay="none"
-          extraAction={<div className="enhanced-accordion__extra">{extraAction}</div>}
+          extraAction={
+            <div className="enhanced-accordion__extra">{extraAction}</div>
+          }
           forceState={isOpen ? 'open' : 'closed'}
           onToggle={onToggle}
           initialIsOpen={initialIsOpen}
