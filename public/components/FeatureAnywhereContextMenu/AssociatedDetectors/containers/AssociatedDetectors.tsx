@@ -47,7 +47,7 @@ interface ConfirmModalState {
   affectedDetector: DetectorListItem;
 }
 
-function AssociatedDetectors({ embeddable, closeFlyout }) {
+function AssociatedDetectors({ embeddable, closeFlyout, setMode }) {
   const core = React.useContext(CoreServicesContext) as CoreStart;
   const dispatch = useDispatch();
   const allDetectors = useSelector((state: AppState) => state.ad.detectorList);
@@ -235,9 +235,10 @@ function AssociatedDetectors({ embeddable, closeFlyout }) {
 
   // TODO: this part is incomplete because it is pending on complete the work for associating an existing
   // detector which is dependent on changes in the action.tsx code that jackie will merge in
-  const onAssociateExistingDetector = async () => {
-    console.log('inside create anomaly detector');
-  };
+  // const onAssociateExistingDetector = async () => {
+  //   setFlyoutMode('existing')
+  //   console.log('inside create anomaly detector');
+  // };
 
   const handleUnlinkDetectorAction = (detector: DetectorListItem) => {
     setDetectorToUnlink(detector);
@@ -319,7 +320,8 @@ function AssociatedDetectors({ embeddable, closeFlyout }) {
                 fill
                 iconType="link"
                 onClick={() => {
-                  onAssociateExistingDetector();
+                  console.log('clicked on associate existing');
+                  setMode('existing');
                 }}
               >
                 Associate a detector

@@ -48,6 +48,7 @@ import { Detector, UNITS } from '../../../../public/models/interfaces';
 import { AppState } from '../../../../public/redux/reducers';
 import { AGGREGATION_TYPES } from '../../../../public/pages/ConfigureModel/utils/constants';
 import { DataFilterList } from '../../../../public/pages/DefineDetector/components/DataFilterList/DataFilterList';
+import AssociateExisting from './AssociateExisting/containers/AssociateExisting';
 
 function AddAnomalyDetector({
   embeddable,
@@ -57,6 +58,8 @@ function AddAnomalyDetector({
   mode,
   setMode,
   index,
+  selectedDetectorId,
+  setSelectedDetectorId,
 }) {
   const dispatch = useDispatch();
   const isLoading = useSelector((state: AppState) => state.ad.requesting);
@@ -93,6 +96,7 @@ function AddAnomalyDetector({
     (feature, index) => index < (aggList.length < 5 ? aggList.length : 5)
   );
   console.log('featureList: ', JSON.stringify(featureList));
+  console.log('vis id: ' + embeddable.vis.id);
 
   // console.log("feature list size: " + featureList.length)
   // console.log("feature name: " + featureList[0].data.label)
@@ -166,6 +170,8 @@ function AddAnomalyDetector({
   };
 
   const handleSubmit = () => {
+    console.log('inside handleSubmit');
+
     try {
       dispatch(createDetector(initialDetectorValue)).then(async (response) => {
         console.log('detector id here: ' + response.response.id);
@@ -316,6 +322,13 @@ function AddAnomalyDetector({
                   ))}
                 </EuiFormFieldset>
                 <EuiSpacer size="m" />
+                {mode === 'existing' && (
+                  <AssociateExisting
+                    embeddableVisId={embeddable.vis.id}
+                    selectedDetectorId={selectedDetectorId}
+                    setSelectedDetectorId={setSelectedDetectorId}
+                  ></AssociateExisting>
+                )}
                 {mode === 'create' && (
                   <div className="create-new">
                     <EuiText size="xs">
