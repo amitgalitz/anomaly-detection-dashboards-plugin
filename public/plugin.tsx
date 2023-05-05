@@ -22,8 +22,6 @@ import { getActions } from './utils/contextMenu/getActions';
 import { setSavedFeatureAnywhereLoader } from './services';
 import { overlayAnomaliesFunction } from './expressions/overlay_anomalies';
 import { setClient } from './services';
-import { overlayAnomaliesFunction } from './expressions/overlay_anomalies';
-import { setClient } from './services';
 
 declare module '../../../src/plugins/ui_actions/public' {
   export interface ActionContextMapping {

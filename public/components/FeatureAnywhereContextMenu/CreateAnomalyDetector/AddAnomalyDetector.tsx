@@ -232,6 +232,34 @@ function AddAnomalyDetector({
     resultIndex: undefined,
   };
 
+  const handleAssociate = async (detectorId: string) => {
+    console.log('inside handleAssociate');
+    enum VisLayerTypes {
+      PointInTimeEvents = 'PointInTimeEvents',
+    }
+
+    const fn = {
+      type: VisLayerTypes.PointInTimeEvents,
+      name: 'overlay_anomalies',
+      args: {
+        detectorId: detectorId,
+      },
+    } as VisLayerExpressionFn;
+
+    const savedObjectToCreate = {
+      title: 'test-title',
+      pluginResourceId: detectorId,
+      visId: embeddable.vis.id,
+      visLayerExpressionFn: fn,
+    } as ISavedAugmentVis;
+
+    const savedObject = await createAugmentVisSavedObject(savedObjectToCreate);
+    console.log('savedObject: ' + JSON.stringify(savedObject));
+
+    const response = await savedObject.save({});
+    console.log('response: ' + JSON.stringify(response));
+  };
+
   function formikToDetectorName(title) {
     const detectorName =
       title +
@@ -649,14 +677,25 @@ function AddAnomalyDetector({
                   <EuiButtonEmpty onClick={closeFlyout}>Cancel</EuiButtonEmpty>
                 </EuiFlexItem>
                 <EuiFlexItem grow={false}>
-                  <EuiButton
-                    fill={true}
-                    data-test-subj="adAnywhereCreateDetectorButton"
-                    isLoading={formikProps.isSubmitting}
-                    onClick={formikProps.handleSubmit}
-                  >
-                    {mode === 'existing' ? 'Associate' : 'Create'} detector
-                  </EuiButton>
+                  {mode === 'existing' ? (
+                    <EuiButton
+                      fill={true}
+                      data-test-subj="adAnywhereCreateDetectorButton"
+                      isLoading={formikProps.isSubmitting}
+                      onClick={() => handleAssociate(selectedDetectorId)}
+                    >
+                      associate detector
+                    </EuiButton>
+                  ) : (
+                    <EuiButton
+                      fill={true}
+                      data-test-subj="adAnywhereCreateDetectorButton"
+                      isLoading={formikProps.isSubmitting}
+                      onClick={formikProps.handleSubmit}
+                    >
+                      create detector
+                    </EuiButton>
+                  )}
                 </EuiFlexItem>
               </EuiFlexGroup>
             </EuiFlyoutFooter>
