@@ -167,6 +167,7 @@ export const overlayAnomaliesFunction =
         );
 
         console.log('anomalies: ' + JSON.stringify(anomalies));
+        
         const anomalyLayer = convertAnomaliesToPointInTimeEventsVisLayer(
           anomalies,
           ADPluginResource

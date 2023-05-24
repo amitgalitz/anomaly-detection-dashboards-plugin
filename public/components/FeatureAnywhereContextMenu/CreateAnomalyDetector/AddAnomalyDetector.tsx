@@ -84,6 +84,8 @@ import { FeatureAccordion } from '../../../../public/pages/ConfigureModel/compon
 import { MAX_FEATURE_NUM } from '../../../../public/utils/constants';
 import { ORIGIN_PLUGIN_VIS_LAYER } from '../../../../public/expressions/constants';
 import { prettifyErrorMessage } from '../../../../server/utils/helpers';
+import { mountReactNode } from '../../../../../../src/core/public/utils';
+import { getUiActions } from '../../../../public/services';
 
 function AddAnomalyDetector({
   embeddable,
@@ -208,14 +210,34 @@ function AddAnomalyDetector({
           savedObjectToCreate
         );
 
+      
+        
+
         const saveObjectResponse = await savedObject.save({});
         console.log('response: ' + JSON.stringify(saveObjectResponse));
+        closeFlyout();
+      
+        const id = response.response.id
+        const alertingButton = (
+          <EuiButton onClick={() => openAlerting(id)}>Set Up Alerts</EuiButton>
+        )
+        core.notifications.toasts.addSuccess({
+          title: `The detector is associated with the ${title} visualization`,
+          text: mountReactNode(alertingButton)
+        })
       });
-      closeFlyout();
+     
+        
+      
     } catch (e) {
     } finally {
     }
   };
+
+  const openAlerting = (id) => {
+    const uiActionService = getUiActions()
+    uiActionService.getTrigger('ALERTING_TRIGGER_AD_ID').exec({ embeddable, id })
+  }
 
   function formikValueToDetector(values): Detector {
     const detectionDateRange = values.historical

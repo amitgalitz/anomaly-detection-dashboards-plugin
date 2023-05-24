@@ -17,6 +17,7 @@ import {
   GetIndicesResponse,
   GetMappingResponse,
   IndexAlias,
+  plugins,
   ServerResponse,
 } from '../models/types';
 import { Router } from '../router';
@@ -45,6 +46,7 @@ export function registerOpenSearchRoutes(
   apiRouter.put('/create_index', opensearchService.createIndex);
   apiRouter.post('/bulk', opensearchService.bulk);
   apiRouter.post('/delete_index', opensearchService.deleteIndex);
+  apiRouter.get('/plugins', opensearchService.getPlugins);
 }
 
 export default class OpenSearchService {
@@ -162,6 +164,34 @@ export default class OpenSearchService {
       });
     } catch (err) {
       console.log('Anomaly detector - Unable to get aliases', err);
+      return opensearchDashboardsResponse.ok({
+        body: {
+          ok: false,
+          error: getErrorMessage(err),
+        },
+      });
+    }
+  };
+
+  getPlugins = async (
+    context: RequestHandlerContext,
+    request: OpenSearchDashboardsRequest,
+    opensearchDashboardsResponse: OpenSearchDashboardsResponseFactory
+  ): Promise<IOpenSearchDashboardsResponse<any>> => {
+    const { plugins } = request.query as { plugins: string };
+    try {
+      const response: plugins[] = await this.client
+        .asScoped(request)
+        .callAsCurrentUser('cat.plugins', {
+          plugins,
+          format: 'json',
+          h: 'component',
+        });
+      return opensearchDashboardsResponse.ok({
+        body: { ok: true, response: { plugins: response } },
+      });
+    } catch (err) {
+      console.log('Anomaly detector - Unable to get plugins', err);
       return opensearchDashboardsResponse.ok({
         body: {
           ok: false,

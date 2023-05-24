@@ -19,7 +19,7 @@ import { CONTEXT_MENU_TRIGGER } from '../../../src/plugins/embeddable/public';
 import { ACTION_AD } from './action/ad_dashboard_action';
 import { PLUGIN_NAME } from './utils/constants';
 import { getActions } from './utils/contextMenu/getActions';
-import { setSavedFeatureAnywhereLoader } from './services';
+import { setSavedFeatureAnywhereLoader, setUiActions } from './services';
 import { overlayAnomaliesFunction } from './expressions/overlay_anomalies';
 import { setClient } from './services';
 
@@ -66,6 +66,7 @@ export class AnomalyDetectionOpenSearchDashboardsPlugin implements Plugin {
 
   public start(core: CoreStart, plugins) {
     setSavedFeatureAnywhereLoader(plugins.visAugmenter.savedAugmentVisLoader);
+    setUiActions(plugins.uiActions)
     return {};
   }
   public stop() {}

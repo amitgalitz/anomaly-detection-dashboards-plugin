@@ -6,9 +6,12 @@
 import { CoreStart } from '../../../src/core/public';
 import { createGetterSetter } from '../../../src/plugins/opensearch_dashboards_utils/public';
 import { SavedObjectLoader } from '../../../src/plugins/saved_objects/public';
+import { UiActionsStart } from '../../../src/plugins/ui_actions/public';
 
 export const [getSavedFeatureAnywhereLoader, setSavedFeatureAnywhereLoader] =
   createGetterSetter<SavedObjectLoader>('savedFeatureAnywhereLoader');
 
 export const [getClient, setClient] =
   createGetterSetter<CoreStart['http']>('http');
+
+  export const [getUiActions, setUiActions] = createGetterSetter<UiActionsStart>('UIActions');

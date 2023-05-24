@@ -21,6 +21,10 @@ export type IndexAlias = {
   alias: string;
 };
 
+export type plugins = {
+  name: string
+}
+
 export type GetAliasesResponse = {
   aliases: IndexAlias[];
 };
