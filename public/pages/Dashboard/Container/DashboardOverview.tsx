@@ -48,6 +48,10 @@ import {
 } from '../../../../server/utils/helpers';
 import { CoreServicesContext } from '../../../components/CoreServices/CoreServices';
 import { CoreStart } from '../../../../../../src/core/public';
+import { ForecastingChart } from '../Components/ForecastingChart';
+import { ForecastingChartTwo } from '../Components/ForecastingChartTwo';
+import { ForecastingChartThree } from '../Components/ForecastingChartThree';
+
 
 export function DashboardOverview() {
   const core = React.useContext(CoreServicesContext) as CoreStart;
@@ -249,6 +253,15 @@ export function DashboardOverview() {
             </EuiFlexGroup>
             <EuiSpacer />
             <AnomaliesLiveChart selectedDetectors={currentDetectors} />
+            <EuiSpacer />
+            <EuiSpacer />
+            <ForecastingChart selectedDetectors={currentDetectors} />
+            <EuiSpacer />
+            <EuiSpacer />
+            <ForecastingChartTwo selectedDetectors={currentDetectors} />
+            <EuiSpacer />
+            <EuiSpacer />
+            <ForecastingChartThree selectedDetectors={currentDetectors} />
             <EuiSpacer />
             <EuiFlexGroup justifyContent="spaceBetween">
               <EuiFlexItem grow={6}>
