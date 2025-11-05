@@ -27,7 +27,8 @@ import {
 } from '../../../src/plugins/embeddable/public';
 import { ACTION_AD } from './action/ad_dashboard_action';
 import { APP_PATH, DASHBOARD_PAGE_NAV_ID, DETECTORS_PAGE_NAV_ID, OVERVIEW_PAGE_NAV_ID, PLUGIN_NAME, FORECASTING_FEATURE_NAME,
-  FORECASTING_OVERVIEW_PAGE_NAV_ID, FORECASTING_DASHBOARD_PAGE_NAV_ID, FORECASTERS_PAGE_NAV_ID, DAILY_INSIGHTS_FEATURE_NAME
+  FORECASTING_OVERVIEW_PAGE_NAV_ID, FORECASTING_DASHBOARD_PAGE_NAV_ID, FORECASTERS_PAGE_NAV_ID, DAILY_INSIGHTS_FEATURE_NAME,
+  DAILY_INSIGHTS_OVERVIEW_PAGE_NAV_ID, DAILY_INSIGHTS_INDICES_PAGE_NAV_ID
  } from './utils/constants';
 import { ACTION_SUGGEST_AD, getActions, getSuggestAnomalyDetectorAction } from './utils/contextMenu/getActions';
 import { overlayAnomaliesFunction } from './expressions/overlay_anomalies';
@@ -248,6 +249,33 @@ export class AnomalyDetectionOpenSearchDashboardsPlugin
           return renderApp(coreStart, params, APP_PATH.LIST_DETECTORS, hideInAppSideNavBar);
         },
       });
+
+      // Daily Insights sub-applications
+      if (dailyInsightsEnabled) {
+        core.application.register({
+          id: DAILY_INSIGHTS_OVERVIEW_PAGE_NAV_ID,
+          title: 'Insights Overview',
+          order: 8050,
+          category: DEFAULT_APP_CATEGORIES.insights,
+          mount: async (params: AppMountParameters) => {
+            const { renderApp } = await import('./daily_insights_app');
+            const [coreStart] = await core.getStartServices();
+            return renderApp(coreStart, params, APP_PATH.DAILY_INSIGHTS_OVERVIEW);
+          },
+        });
+
+        core.application.register({
+          id: DAILY_INSIGHTS_INDICES_PAGE_NAV_ID,
+          title: 'Indices Management',
+          order: 8050,
+          category: DEFAULT_APP_CATEGORIES.insights,
+          mount: async (params: AppMountParameters) => {
+            const { renderApp } = await import('./daily_insights_app');
+            const [coreStart] = await core.getStartServices();
+            return renderApp(coreStart, params, APP_PATH.DAILY_INSIGHTS_INDICES);
+          },
+        });
+      }
     }
 
     // link the sub applications to the parent application
@@ -267,6 +295,20 @@ export class AnomalyDetectionOpenSearchDashboardsPlugin
       }]
     );
 
+    if (dailyInsightsEnabled) {
+      core.chrome.navGroup.addNavLinksToGroup(
+        DEFAULT_NAV_GROUPS.observability,
+        [{
+          id: DAILY_INSIGHTS_OVERVIEW_PAGE_NAV_ID,
+          parentNavLinkId: DAILY_INSIGHTS_FEATURE_NAME
+        },
+        {
+          id: DAILY_INSIGHTS_INDICES_PAGE_NAV_ID,
+          parentNavLinkId: DAILY_INSIGHTS_FEATURE_NAME
+        }]
+      );
+    }
+
     core.chrome.navGroup.addNavLinksToGroup(
       DEFAULT_NAV_GROUPS.all,
       [{
@@ -283,6 +325,20 @@ export class AnomalyDetectionOpenSearchDashboardsPlugin
       }]
     );
 
+    if (dailyInsightsEnabled) {
+      core.chrome.navGroup.addNavLinksToGroup(
+        DEFAULT_NAV_GROUPS.all,
+        [{
+          id: DAILY_INSIGHTS_OVERVIEW_PAGE_NAV_ID,
+          parentNavLinkId: DAILY_INSIGHTS_FEATURE_NAME
+        },
+        {
+          id: DAILY_INSIGHTS_INDICES_PAGE_NAV_ID,
+          parentNavLinkId: DAILY_INSIGHTS_FEATURE_NAME
+        }]
+      );
+    }
+
     core.chrome.navGroup.addNavLinksToGroup(
       DEFAULT_NAV_GROUPS['security-analytics'],
       [{
@@ -298,6 +354,20 @@ export class AnomalyDetectionOpenSearchDashboardsPlugin
         parentNavLinkId: PLUGIN_NAME
       }]
     );
+
+    if (dailyInsightsEnabled) {
+      core.chrome.navGroup.addNavLinksToGroup(
+        DEFAULT_NAV_GROUPS['security-analytics'],
+        [{
+          id: DAILY_INSIGHTS_OVERVIEW_PAGE_NAV_ID,
+          parentNavLinkId: DAILY_INSIGHTS_FEATURE_NAME
+        },
+        {
+          id: DAILY_INSIGHTS_INDICES_PAGE_NAV_ID,
+          parentNavLinkId: DAILY_INSIGHTS_FEATURE_NAME
+        }]
+      );
+    }
 
     if (forecastingEnabled) {
       core.chrome.navGroup.addNavLinksToGroup(

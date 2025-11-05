@@ -30,6 +30,7 @@ import {
 } from '@elastic/eui';
 import React, { useState, useEffect } from 'react';
 import ContentPanel from '../../../../components/ContentPanel/ContentPanel';
+import { IndicesSelectionModal } from '../IndicesManagement/IndicesSelectionModal';
 
 interface InsightCard {
   id: string;
@@ -58,26 +59,69 @@ export function InsightsOverview({ onNavigateToIndicesManagement }: InsightsOver
   const [recentInsights, setRecentInsights] = useState<InsightCard[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasActiveInsightsJob, setHasActiveInsightsJob] = useState(false);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isStartingInsights, setIsStartingInsights] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
   }, []);
 
-  const loadDashboardData = () => {
-    // TODO: Check if any insights jobs are active
-    // TODO: Fetch insights data from GET /_plugins/_anomaly_detection/insights/_results
-    
-    // Mock data - set to false to show setup experience
-    setHasActiveInsightsJob(false);
-    
-    setStats({
-      totalInsights: 0,
-      activeJobs: 0,
-      totalIndices: 0,
-      totalDetectors: 0,
-    });
+  const loadDashboardData = async () => {
+    setIsLoading(true);
+    try {
+      // TODO: Check insights job status for this domain
+      // const insightsStatus = await dispatch(getInsightsStatus(dataSourceId));
+      // setHasActiveInsightsJob(insightsStatus.status === 'active');
+      
+      // TODO: If active, fetch insights data and stats
+      // if (insightsStatus.status === 'active') {
+      //   const insights = await dispatch(getInsightsResults(dataSourceId));
+      //   setRecentInsights(insights.data);
+      //   setStats({
+      //     totalInsights: insights.total,
+      //     activeJobs: 1,
+      //     totalIndices: insights.indices.length,
+      //     totalDetectors: insights.detectors.length,
+      //   });
+      // }
+      
+      // Mock: Set to false to show setup experience
+      setHasActiveInsightsJob(false);
+      
+      setStats({
+        totalInsights: 0,
+        activeJobs: 0,
+        totalIndices: 0,
+        totalDetectors: 0,
+      });
 
-    setRecentInsights([]);
+      setRecentInsights([]);
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleStartAutoInsights = async (selectedIndices: string[]) => {
+    setIsStartingInsights(true);
+    try {
+      // 1. Execute agent to create detectors
+      // TODO: Implement executeAutoCreateAgent redux action
+      // await dispatch(executeAutoCreateAgent(selectedIndices, dataSourceId));
+      
+      // 2. Start insights job for the domain
+      // TODO: Implement startInsightsJob redux action
+      // await dispatch(startInsightsJob(selectedIndices, dataSourceId));
+      
+      // 3. Refresh data
+      loadDashboardData();
+      setIsModalVisible(false);
+    } catch (error) {
+      console.error('Error starting auto insights:', error);
+    } finally {
+      setIsStartingInsights(false);
+    }
   };
 
   const renderSetupExperience = () => (
@@ -104,7 +148,7 @@ export function InsightsOverview({ onNavigateToIndicesManagement }: InsightsOver
             color="primary"
             fill
             iconType="plus"
-            onClick={onNavigateToIndicesManagement}
+            onClick={() => setIsModalVisible(true)}
           >
             Select Indices to Monitor
           </EuiSmallButton>
@@ -319,6 +363,14 @@ export function InsightsOverview({ onNavigateToIndicesManagement }: InsightsOver
   return (
     <React.Fragment>
       {hasActiveInsightsJob ? renderActiveInsightsDashboard() : renderSetupExperience()}
+      
+      <IndicesSelectionModal
+        isVisible={isModalVisible}
+        onClose={() => setIsModalVisible(false)}
+        onConfirm={handleStartAutoInsights}
+        excludedIndices={[]} // No exclusions for setup
+        isLoading={isStartingInsights}
+      />
     </React.Fragment>
   );
 }

@@ -65,16 +65,25 @@ export function IndicesManagement() {
     setIsLoading(true);
     try {
       // Step 1: Fetch all detectors to filter for auto-created ones
-      // TODO: Uncomment when ready to use real API
-      // await dispatch(getDetectorList(getAllDetectorsQueryParamsWithDataSourceId(dataSourceId)));
+      await dispatch(getDetectorList(getAllDetectorsQueryParamsWithDataSourceId(dataSourceId)));
       
       // Step 2: Filter detectors where auto_created === true
       // TODO: Uncomment when auto_created field is added to detector model
       // const autoCreatedDetectors = adState.detectorList.filter(detector => detector.auto_created === true);
       
-      // Step 3: Group detectors by index pattern
-      // Step 4: For each index pattern, check insights job status using insights API
-      // TODO: Call insights status API for each unique index pattern
+      // Step 3: Group detectors by index pattern and get insights status
+      // For now, using mock data structure but showing how real implementation would work:
+      
+      // Real implementation would be:
+      // const indexGroups = new Map();
+      // autoCreatedDetectors.forEach(detector => {
+      //   detector.indices.forEach(indexPattern => {
+      //     if (!indexGroups.has(indexPattern)) {
+      //       indexGroups.set(indexPattern, { detectors: [], lastAnomaly: null });
+      //     }
+      //     indexGroups.get(indexPattern).detectors.push(detector.name);
+      //   });
+      // });
       
       // Mock data showing expected structure
       const mockData: IndexInsightData[] = [
@@ -110,13 +119,15 @@ export function IndicesManagement() {
   const handleStartAutoInsights = async (selectedIndices: string[]) => {
     setIsStartingInsights(true);
     try {
-      // TODO: Call execute agent API
-      console.log('Starting auto insights for indices:', selectedIndices);
+      // 1. Execute agent to create detectors
+      // TODO: Implement executeAutoCreateAgent redux action
+      // await dispatch(executeAutoCreateAgent(selectedIndices, dataSourceId));
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // 2. Start insights job for the domain
+      // TODO: Implement startInsightsJob redux action  
+      // await dispatch(startInsightsJob(selectedIndices, dataSourceId));
       
-      // Refresh data after successful creation
+      // 3. Refresh data
       loadIndicesData();
       setIsModalVisible(false);
     } catch (error) {

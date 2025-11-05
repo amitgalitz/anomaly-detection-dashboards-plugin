@@ -12,13 +12,16 @@
 import { CoreStart, AppMountParameters } from '../../../src/core/public';
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { HashRouter as Router, Route } from 'react-router-dom';
+import { HashRouter as Router, Route, Switch } from 'react-router-dom';
 import { DailyInsights } from './pages/DailyInsights';
+import { InsightsOverview } from './pages/DailyInsights/components/InsightsOverview';
+import { IndicesManagement } from './pages/DailyInsights/components/IndicesManagement';
 import { Provider } from 'react-redux';
 import configureStore from './redux/configureStore';
 import { CoreServicesContext } from './components/CoreServices/CoreServices';
+import { APP_PATH } from './utils/constants';
 
-export function renderApp(coreStart: CoreStart, params: AppMountParameters) {
+export function renderApp(coreStart: CoreStart, params: AppMountParameters, redirectPath?: string) {
   const http = coreStart.http;
   const store = configureStore(http);
 
@@ -30,19 +33,49 @@ export function renderApp(coreStart: CoreStart, params: AppMountParameters) {
     require('@elastic/charts/dist/theme_only_light.css');
   }
 
+  const renderContent = () => {
+    if (redirectPath) {
+      // Direct navigation to specific sub-page
+      switch (redirectPath) {
+        case APP_PATH.DAILY_INSIGHTS_OVERVIEW:
+          return <InsightsOverview />;
+        case APP_PATH.DAILY_INSIGHTS_INDICES:
+          return <IndicesManagement />;
+        default:
+          return <DailyInsights setActionMenu={params.setHeaderActionMenu} />;
+      }
+    }
+
+    // Default tabbed interface
+    return (
+      <Switch>
+        <Route
+          path={APP_PATH.DAILY_INSIGHTS_OVERVIEW}
+          render={() => <InsightsOverview />}
+        />
+        <Route
+          path={APP_PATH.DAILY_INSIGHTS_INDICES}
+          render={() => <IndicesManagement />}
+        />
+        <Route
+          path={APP_PATH.DAILY_INSIGHTS}
+          render={(props) => (
+            <DailyInsights
+              setActionMenu={params.setHeaderActionMenu}
+              {...props}
+            />
+          )}
+        />
+      </Switch>
+    );
+  };
+
   ReactDOM.render(
     <Provider store={store}>
       <Router>
-        <Route
-          render={(props) => (
-            <CoreServicesContext.Provider value={coreStart}>
-              <DailyInsights
-                setActionMenu={params.setHeaderActionMenu}
-                {...props}
-              />
-            </CoreServicesContext.Provider>
-          )}
-        />
+        <CoreServicesContext.Provider value={coreStart}>
+          {renderContent()}
+        </CoreServicesContext.Provider>
       </Router>
     </Provider>,
     params.element

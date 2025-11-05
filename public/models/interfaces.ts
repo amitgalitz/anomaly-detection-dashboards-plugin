@@ -231,6 +231,7 @@ export type DetectorListItem = {
   lastUpdateTime: number;
   enabledTime?: number;
   detectorType?: string;
+  auto_created?: boolean;
 };
 
 export type Forecaster = {
