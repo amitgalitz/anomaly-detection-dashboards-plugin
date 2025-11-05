@@ -12,44 +12,95 @@
 import {
   EuiSpacer,
   EuiPageHeader,
-  EuiText
+  EuiText,
+  EuiFlexGroup,
+  EuiFlexItem,
+  EuiSmallButton,
+  EuiTabs,
+  EuiTab,
+  EuiTabContent,
 } from '@elastic/eui';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { RouteComponentProps } from 'react-router-dom';
 import ContentPanel from '../../../components/ContentPanel/ContentPanel';
+import { InsightsOverview } from '../components/InsightsOverview/InsightsOverview';
+import { IndicesManagement } from '../components/IndicesManagement/IndicesManagement';
 
 interface DailyInsightsProps extends RouteComponentProps {
   setActionMenu?: (menuMount: any) => void;
 }
 
+const tabs = [
+  {
+    id: 'overview',
+    name: 'Insights Overview',
+    disabled: false,
+  },
+  {
+    id: 'indices',
+    name: 'Indices Management',
+    disabled: false,
+  },
+];
+
 export function DailyInsights(props: DailyInsightsProps) {
+  const [selectedTabId, setSelectedTabId] = useState('overview');
+
+  const onSelectedTabChanged = (id: string) => {
+    setSelectedTabId(id);
+  };
+
+  const renderTabs = () => {
+    return tabs.map((tab, index) => (
+      <EuiTab
+        onClick={() => onSelectedTabChanged(tab.id)}
+        isSelected={tab.id === selectedTabId}
+        disabled={tab.disabled}
+        key={index}
+      >
+        {tab.name}
+      </EuiTab>
+    ));
+  };
+
+  const renderTabContent = () => {
+    switch (selectedTabId) {
+      case 'overview':
+        return <InsightsOverview onNavigateToIndicesManagement={() => setSelectedTabId('indices')} />;
+      case 'indices':
+        return <IndicesManagement />;
+      default:
+        return <InsightsOverview onNavigateToIndicesManagement={() => setSelectedTabId('indices')} />;
+    }
+  };
 
   return (
     <React.Fragment>
       <EuiPageHeader
         pageTitle={
-            <EuiText size="s">
-              <h1>Daily Insights</h1>
-            </EuiText>
+          <EuiText size="s">
+            <h1>Daily Insights Management</h1>
+          </EuiText>
         }
-        description="View daily anomaly detection insights and summaries"
+        description="Manage daily anomaly detection insights, indices, and detectors"
+        rightSideItems={[
+          <EuiSmallButton
+            fill
+            iconType="plus"
+            onClick={() => {
+              // TODO: Navigate to create insights job
+            }}
+          >
+            Start Auto Insights
+          </EuiSmallButton>,
+        ]}
       />
       <EuiSpacer size="l" />
 
-      <ContentPanel
-        title="Welcome to Daily Insights"
-        subTitle="This page provides a summary of your anomaly detection insights"
-      >
-        <EuiText>
-          <p>
-            Daily Insights helps you understand patterns and anomalies detected in your data.
-            This is a new feature that will provide daily summaries of anomaly detection results.
-          </p>
-          <EuiSpacer size="m" />
-        </EuiText>
-      </ContentPanel>
+      <EuiTabs>{renderTabs()}</EuiTabs>
+      <EuiSpacer size="m" />
 
-      <EuiSpacer size="l" />
+      {renderTabContent()}
     </React.Fragment>
   );
 }
