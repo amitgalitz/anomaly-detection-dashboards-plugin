@@ -280,7 +280,7 @@ function IndicesManagementContent({ core }: { core: CoreStart }) {
   ];
 
   const renderAddIndicesPanel = () => (
-    <EuiPanel paddingSize="m">
+    <EuiPanel paddingSize="m" data-test-subj="addNewIndicesPanel" style={{ margin: '0 24px' }}>
       <EuiFlexGroup alignItems="center" justifyContent="spaceBetween">
         <EuiFlexItem>
           <EuiTitle size="xs">
@@ -293,6 +293,7 @@ function IndicesManagementContent({ core }: { core: CoreStart }) {
         </EuiFlexItem>
         <EuiFlexItem grow={false}>
           <EuiSmallButton
+            data-test-subj="addNewIndicesButton"
             fill
             color="primary"
             iconType="plus"
@@ -310,6 +311,7 @@ function IndicesManagementContent({ core }: { core: CoreStart }) {
     if (!insightsEnabled && indicesData.length === 0) {
       return (
         <EuiEmptyPrompt
+          data-test-subj="noIndicesConfiguredPrompt"
           iconType="indexManagementApp"
           title={<h3>No indices configured for insights</h3>}
           body={
@@ -321,6 +323,7 @@ function IndicesManagementContent({ core }: { core: CoreStart }) {
           }
           actions={
             <EuiSmallButton
+              data-test-subj="addFirstIndexButton"
               fill
               iconType="plus"
               onClick={() => history.push('/daily-insights/overview')}
@@ -336,6 +339,7 @@ function IndicesManagementContent({ core }: { core: CoreStart }) {
     if (insightsEnabled && indicesData.length === 0) {
       return (
         <EuiEmptyPrompt
+          data-test-subj="detectorsBeingCreatedPrompt"
           icon={<EuiLoadingSpinner size="xl" />}
           title={<h3>Job has started and detectors are being created</h3>}
           body={
@@ -358,14 +362,16 @@ function IndicesManagementContent({ core }: { core: CoreStart }) {
 
   return (
     <React.Fragment>
-      {renderAddIndicesPanel()}
+      {insightsEnabled && renderAddIndicesPanel()}
       
       <EuiSpacer size="l" />
 
-      <ContentPanel 
-        title="Configured Indices" 
-        titleSize="m"
-        subTitle={`${indicesData.length} indices configured for daily insights`}
+      <div style={{ margin: '0 24px' }}>
+        <ContentPanel 
+          title="Configured Indices" 
+          titleSize="m"
+          subTitle={`${indicesData.length} indices configured for daily insights`}
+          data-test-subj="configuredIndicesPanel"
         actions={
           <EuiSmallButton
             iconType="refresh"
@@ -387,6 +393,7 @@ function IndicesManagementContent({ core }: { core: CoreStart }) {
           renderEmptyState()
         )}
       </ContentPanel>
+      </div>
 
       <EnhancedSelectionModal
         isVisible={isModalVisible}
