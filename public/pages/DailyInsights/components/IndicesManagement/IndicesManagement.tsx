@@ -29,7 +29,7 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import ContentPanel from '../../../../components/ContentPanel/ContentPanel';
-import { IndicesSelectionModal } from './IndicesSelectionModal';
+import { EnhancedSelectionModal } from './EnhancedSelectionModal';
 import { getDataSourceFromURL, getAllDetectorsQueryParamsWithDataSourceId } from '../../../utils/helpers';
 import { getDetectorList } from '../../../../redux/reducers/ad';
 import { AppState } from '../../../../redux/reducers';
@@ -58,62 +58,71 @@ export function IndicesManagement() {
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   useEffect(() => {
-    loadIndicesData();
-  }, []);
+    // Initial load
+    loadDetectors();
+    
+    // Set up 30-second refresh for async detector creation
+    const interval = setInterval(loadDetectors, 30000);
+    
+    return () => clearInterval(interval);
+  }, [dataSourceId]);
 
-  const loadIndicesData = async () => {
-    setIsLoading(true);
+  // Process detectors when they change
+  useEffect(() => {
+    if (adState.detectorList) {
+      processDetectors();
+    }
+  }, [adState.detectorList]);
+
+  const loadDetectors = async () => {
     try {
-      // Step 1: Fetch all detectors to filter for auto-created ones
       await dispatch(getDetectorList(getAllDetectorsQueryParamsWithDataSourceId(dataSourceId)));
-      
-      // Step 2: Filter detectors where auto_created === true
-      // TODO: Uncomment when auto_created field is added to detector model
-      // const autoCreatedDetectors = adState.detectorList.filter(detector => detector.auto_created === true);
-      
-      // Step 3: Group detectors by index pattern and get insights status
-      // For now, using mock data structure but showing how real implementation would work:
-      
-      // Real implementation would be:
-      // const indexGroups = new Map();
-      // autoCreatedDetectors.forEach(detector => {
-      //   detector.indices.forEach(indexPattern => {
-      //     if (!indexGroups.has(indexPattern)) {
-      //       indexGroups.set(indexPattern, { detectors: [], lastAnomaly: null });
-      //     }
-      //     indexGroups.get(indexPattern).detectors.push(detector.name);
-      //   });
-      // });
-      
-      // Mock data showing expected structure
-      const mockData: IndexInsightData[] = [
-        {
-          indexName: 'logs-web-prod-*',
-          detectors: ['web-logs-detector-1', 'web-logs-detector-2'],
-          lastAnomaly: {
-            timestamp: '2024-11-05T10:30:00Z',
-            severity: 'high',
-            count: 3,
-          },
-        },
-        {
-          indexName: 'metrics-app-*',
-          detectors: ['app-metrics-detector'],
-          lastAnomaly: null,
-        },
-        {
-          indexName: 'logs-api-*',
-          detectors: ['api-logs-detector'],
-          lastAnomaly: null,
-        },
-      ];
-      
-      setIndicesData(mockData);
     } catch (error) {
-      console.error('Error loading indices data:', error);
-    } finally {
+      console.error('Error loading detectors:', error);
+      setIndicesData([]);
       setIsLoading(false);
     }
+  };
+
+  const processDetectors = () => {
+    setIsLoading(true);
+    
+    console.log('All detectors:', adState.detectorList);
+    
+    // Filter for auto-created detectors
+    const detectors = Array.isArray(adState.detectorList) ? adState.detectorList : [];
+    const autoCreatedDetectors = detectors.filter(detector => detector.auto_created === true);
+    
+    console.log('Auto-created detectors:', autoCreatedDetectors);
+    
+    // Group by index pattern
+    const indexGroups = new Map<string, { detectors: string[], lastAnomaly: any }>();
+    
+    autoCreatedDetectors.forEach(detector => {
+      detector.indices.forEach(indexPattern => {
+        if (!indexGroups.has(indexPattern)) {
+          indexGroups.set(indexPattern, {
+            detectors: [],
+            lastAnomaly: null, // TODO: Get from insights API
+          });
+        }
+        indexGroups.get(indexPattern)!.detectors.push(detector.name);
+      });
+    });
+    
+    console.log('Index groups:', Array.from(indexGroups.entries()));
+    
+    // Convert to display format
+    const indicesData: IndexInsightData[] = Array.from(indexGroups.entries()).map(([indexName, data]) => ({
+      indexName,
+      detectors: data.detectors,
+      lastAnomaly: data.lastAnomaly,
+    }));
+    
+    console.log('Final indices data:', indicesData);
+    
+    setIndicesData(indicesData);
+    setIsLoading(false);
   };
 
   const handleStartAutoInsights = async (selectedIndices: string[]) => {
@@ -289,6 +298,15 @@ export function IndicesManagement() {
         title="Configured Indices" 
         titleSize="m"
         subTitle={`${indicesData.length} indices configured for daily insights`}
+        actions={
+          <EuiSmallButton
+            iconType="refresh"
+            onClick={loadDetectors}
+            isLoading={isLoading}
+          >
+            Refresh
+          </EuiSmallButton>
+        }
       >
         {indicesData.length > 0 ? (
           <EuiBasicTable
@@ -302,11 +320,15 @@ export function IndicesManagement() {
         )}
       </ContentPanel>
 
-      <IndicesSelectionModal
+      <EnhancedSelectionModal
         isVisible={isModalVisible}
-        onClose={() => setIsModalVisible(false)}
-        onConfirm={handleStartAutoInsights}
-        excludedIndices={getExcludedIndices()}
+        selectedIndices={[]} // Start fresh for adding new indices
+        onSelectionChange={(indices) => {
+          // Handle the selection and trigger auto-create
+          handleStartAutoInsights(indices);
+        }}
+        onCancel={() => setIsModalVisible(false)}
+        onConfirm={() => setIsModalVisible(false)}
         isLoading={isStartingInsights}
       />
     </React.Fragment>

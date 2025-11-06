@@ -30,7 +30,7 @@ import {
 } from '@elastic/eui';
 import React, { useState, useEffect } from 'react';
 import ContentPanel from '../../../../components/ContentPanel/ContentPanel';
-import { IndicesSelectionModal } from '../IndicesManagement/IndicesSelectionModal';
+import { EnhancedSelectionModal } from '../IndicesManagement/EnhancedSelectionModal';
 
 interface InsightCard {
   id: string;
@@ -61,6 +61,7 @@ export function InsightsOverview({ onNavigateToIndicesManagement }: InsightsOver
   const [hasActiveInsightsJob, setHasActiveInsightsJob] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isStartingInsights, setIsStartingInsights] = useState(false);
+  const [selectedIndicesForSetup, setSelectedIndicesForSetup] = useState<string[]>([]);
 
   useEffect(() => {
     loadDashboardData();
@@ -103,20 +104,25 @@ export function InsightsOverview({ onNavigateToIndicesManagement }: InsightsOver
     }
   };
 
-  const handleStartAutoInsights = async (selectedIndices: string[]) => {
+  const handleConfirmIndicesSelection = (selectedIndices: string[]) => {
+    setSelectedIndicesForSetup(selectedIndices);
+    setIsModalVisible(false);
+  };
+
+  const handleExecuteAutoInsights = async () => {
     setIsStartingInsights(true);
     try {
       // 1. Execute agent to create detectors
       // TODO: Implement executeAutoCreateAgent redux action
-      // await dispatch(executeAutoCreateAgent(selectedIndices, dataSourceId));
+      // await dispatch(executeAutoCreateAgent(selectedIndicesForSetup, dataSourceId));
       
       // 2. Start insights job for the domain
       // TODO: Implement startInsightsJob redux action
-      // await dispatch(startInsightsJob(selectedIndices, dataSourceId));
+      // await dispatch(startInsightsJob(selectedIndicesForSetup, dataSourceId));
       
       // 3. Refresh data
       loadDashboardData();
-      setIsModalVisible(false);
+      setSelectedIndicesForSetup([]);
     } catch (error) {
       console.error('Error starting auto insights:', error);
     } finally {
@@ -124,37 +130,109 @@ export function InsightsOverview({ onNavigateToIndicesManagement }: InsightsOver
     }
   };
 
+  const renderSelectedIndices = () => {
+    if (selectedIndicesForSetup.length === 0) return null;
+
+    return (
+      <EuiPanel paddingSize="m" color="success" hasBorder>
+        <EuiTitle size="xs">
+          <h4>Selected Indices for Auto Insights</h4>
+        </EuiTitle>
+        <EuiSpacer size="s" />
+        <EuiFlexGroup wrap gutterSize="s">
+          {selectedIndicesForSetup.map((index, i) => (
+            <EuiFlexItem grow={false} key={i}>
+              <EuiBadge color="success" iconType="indexManagementApp">
+                {index}
+              </EuiBadge>
+            </EuiFlexItem>
+          ))}
+        </EuiFlexGroup>
+        <EuiSpacer size="m" />
+        <EuiFlexGroup justifyContent="spaceBetween" alignItems="center">
+          <EuiFlexItem>
+            <EuiText size="s" color="subdued">
+              Ready to create detectors and start insights for {selectedIndicesForSetup.length} indices
+            </EuiText>
+          </EuiFlexItem>
+          <EuiFlexItem grow={false}>
+            <EuiFlexGroup gutterSize="s">
+              <EuiFlexItem grow={false}>
+                <EuiSmallButton
+                  onClick={() => setIsModalVisible(true)}
+                >
+                  Edit Selection
+                </EuiSmallButton>
+              </EuiFlexItem>
+              <EuiFlexItem grow={false}>
+                <EuiSmallButton
+                  color="danger"
+                  onClick={() => setSelectedIndicesForSetup([])}
+                >
+                  Clear Selection
+                </EuiSmallButton>
+              </EuiFlexItem>
+            </EuiFlexGroup>
+          </EuiFlexItem>
+        </EuiFlexGroup>
+      </EuiPanel>
+    );
+  };
+
   const renderSetupExperience = () => (
-    <ContentPanel title="Get Started with Daily Insights" titleSize="m">
-      <EuiText size="s">
-        <p>
-          Daily Insights automatically analyzes your data patterns and provides summaries of anomalies detected across your indices. 
-          Get started by selecting indices to monitor and we'll create optimized detectors for you.
-        </p>
-      </EuiText>
-      <EuiSpacer size="l" />
-      
-      <EuiEmptyPrompt
-        iconType="visLine"
-        title={<h3>Set up your first insights job</h3>}
-        body={
+    <>
+      <ContentPanel title="Get Started with Daily Insights" titleSize="m">
+        <EuiText size="s">
           <p>
-            Select indices to monitor and we'll automatically create anomaly detectors 
-            and start generating daily insights for your data.
+            Daily Insights automatically analyzes your data patterns and provides summaries of anomalies detected across your indices. 
+            Get started by selecting indices to monitor and we'll create optimized detectors for you.
           </p>
-        }
-        actions={
-          <EuiSmallButton
-            color="primary"
-            fill
-            iconType="plus"
-            onClick={() => setIsModalVisible(true)}
-          >
-            Select Indices to Monitor
-          </EuiSmallButton>
-        }
-      />
-    </ContentPanel>
+        </EuiText>
+        <EuiSpacer size="l" />
+        
+        {selectedIndicesForSetup.length === 0 ? (
+          <EuiEmptyPrompt
+            iconType="visLine"
+            title={<h3>Set up your first insights job</h3>}
+            body={
+              <p>
+                Select indices to monitor and we'll automatically create anomaly detectors 
+                and start generating daily insights for your data.
+              </p>
+            }
+            actions={
+              <EuiSmallButton
+                color="primary"
+                fill
+                iconType="plus"
+                onClick={() => setIsModalVisible(true)}
+              >
+                Select Indices to Monitor
+              </EuiSmallButton>
+            }
+          />
+        ) : (
+          <div>
+            {renderSelectedIndices()}
+            <EuiSpacer size="l" />
+            <EuiFlexGroup justifyContent="center">
+              <EuiFlexItem grow={false}>
+                <EuiSmallButton
+                  color="primary"
+                  fill
+                  size="m"
+                  iconType="play"
+                  onClick={handleExecuteAutoInsights}
+                  isLoading={isStartingInsights}
+                >
+                  Start Auto Insights for {selectedIndicesForSetup.length} Indices
+                </EuiSmallButton>
+              </EuiFlexItem>
+            </EuiFlexGroup>
+          </div>
+        )}
+      </ContentPanel>
+    </>
   );
 
   const renderActiveInsightsDashboard = () => (
@@ -364,11 +442,12 @@ export function InsightsOverview({ onNavigateToIndicesManagement }: InsightsOver
     <React.Fragment>
       {hasActiveInsightsJob ? renderActiveInsightsDashboard() : renderSetupExperience()}
       
-      <IndicesSelectionModal
+      <EnhancedSelectionModal
         isVisible={isModalVisible}
-        onClose={() => setIsModalVisible(false)}
-        onConfirm={handleStartAutoInsights}
-        excludedIndices={[]} // No exclusions for setup
+        selectedIndices={selectedIndicesForSetup}
+        onSelectionChange={setSelectedIndicesForSetup}
+        onCancel={() => setIsModalVisible(false)}
+        onConfirm={() => setIsModalVisible(false)}
         isLoading={isStartingInsights}
       />
     </React.Fragment>
