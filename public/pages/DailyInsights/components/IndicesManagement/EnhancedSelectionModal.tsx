@@ -29,7 +29,7 @@ import {
   EuiCompressedComboBox,
   EuiFormRow,
 } from '@elastic/eui';
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { debounce, get } from 'lodash';
@@ -83,6 +83,7 @@ export function EnhancedSelectionModal({
   const opensearchState = useSelector((state: AppState) => state.opensearch);
   
   const [searchText, setSearchText] = useState('');
+  const [queryText, setQueryText] = useState('');
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [selectedClusters, setSelectedClusters] = useState<ClusterOption[]>([]);
@@ -102,16 +103,41 @@ export function EnhancedSelectionModal({
     }
   }, [opensearchState.clusters]);
 
+  // Load indices when clusters change (initial load)
   useEffect(() => {
-    // Load indices when clusters change
     if (selectedClusters.length > 0) {
       const clustersString = getClustersStringForSearchQuery(selectedClusters);
       const localClusterExists = selectedClusters.some(
         (cluster) => cluster.localcluster === 'true'
       );
-      dispatch(getIndicesAndAliases(searchText, dataSourceId, clustersString, localClusterExists));
+      dispatch(getIndicesAndAliases('', dataSourceId, clustersString, localClusterExists));
     }
-  }, [selectedClusters, searchText, dataSourceId, dispatch]);
+  }, [selectedClusters, dataSourceId, dispatch]);
+
+  // Stable debounced search handler to prevent flickering
+  const debouncedSearch = useCallback(
+    debounce(async (searchValue: string, clusters: ClusterOption[], dataSource: string) => {
+      if (searchValue !== queryText) {
+        const sanitizedQuery = sanitizeSearchText(searchValue);
+        setQueryText(sanitizedQuery);
+        
+        if (clusters.length > 0) {
+          const clustersString = clusters
+            .filter((cluster) => cluster.localcluster === 'false')
+            .map((cluster) => cluster.cluster)
+            .join(',');
+          await dispatch(getPrioritizedIndices(sanitizedQuery, dataSource, clustersString));
+        }
+        setPageIndex(0);
+      }
+    }, 300),
+    [queryText, dispatch]
+  );
+
+  const handleSearchChange = (searchValue: string) => {
+    setSearchText(searchValue);
+    debouncedSearch(searchValue, selectedClusters, dataSourceId);
+  };
 
   const getClustersStringForSearchQuery = (clusters: ClusterOption[]) => {
     return clusters
@@ -146,48 +172,70 @@ export function EnhancedSelectionModal({
     return getVisibleOptions(visibleIndices, visibleAliases, localClusterName);
   }, [visibleIndices, visibleAliases, localClusterName]);
 
-  // Flatten grouped options with cluster prefixes and alias indicators
+  // Flatten grouped options with proper cluster ordering (indices, aliases per cluster)
   const allIndices = useMemo(() => {
-    const flattenedItems: Array<{name: string, displayName: string, type: 'index' | 'alias', group: string, docCount?: number, size?: string}> = [];
+    const flattenedItems: Array<{name: string, displayName: string, type: 'index' | 'alias', cluster: string, docCount?: number, size?: string}> = [];
+    
+    // Group by cluster first, then by type within each cluster
+    const clusterGroups = new Map<string, {indices: any[], aliases: any[]}>();
     
     groupedOptions.forEach(group => {
-      // Determine cluster prefix from group label
-      const isLocal = group.label.toLowerCase().includes('local');
-      const clusterPrefix = isLocal ? '[Local]' : '[Remote]';
+      const isAlias = group.label.toLowerCase().includes('alias');
+      const type = isAlias ? 'aliases' : 'indices';
       
-      group.options.forEach((option: any) => {
-        // Determine if it's an index or alias based on the group label
-        const isAlias = group.label.toLowerCase().includes('alias');
-        const isIndex = group.label.toLowerCase().includes('indice');
+      // Extract cluster name from group label (e.g., "Indices: [Local]" or "Aliases: cluster-name")
+      const clusterMatch = group.label.match(/:\s*(.+)$/);
+      const clusterName = clusterMatch ? clusterMatch[1] : 'unknown';
+      
+      if (!clusterGroups.has(clusterName)) {
+        clusterGroups.set(clusterName, { indices: [], aliases: [] });
+      }
+      
+      clusterGroups.get(clusterName)![type] = group.options;
+    });
+    
+    // Process each cluster: indices first, then aliases
+    clusterGroups.forEach((groupData, clusterName) => {
+      const isLocal = clusterName.includes('[Local]') || clusterName.includes('(Local)');
+      
+      // Process indices first
+      groupData.indices.forEach((option: any) => {
+        const indexName = option.label; // Keep original name (remote already has cluster:index format)
+        const displayName = `${indexName}`;
         
-        let type: 'index' | 'alias' = 'index';
         let docCount = 0;
         let size = '';
-        let displayName = '';
-        
-        if (isAlias) {
-          type = 'alias';
-          displayName = `${clusterPrefix} ${option.label} (alias)`;
-          // Find the corresponding alias to get target index
-          const aliasInfo = visibleAliases.find(a => a.alias === option.label);
-          size = aliasInfo ? `Alias for: ${aliasInfo.index}` : 'Alias';
-        } else if (isIndex) {
-          type = 'index';
-          displayName = `${clusterPrefix} ${option.label}`;
-          // Find the corresponding index to get doc count and size
-          const indexInfo = visibleIndices.find(i => i.index === option.label);
-          if (indexInfo) {
-            docCount = parseInt(indexInfo['docs.count'] || '0');
-            size = indexInfo['store.size'] || '0b';
-          }
+        const indexInfo = visibleIndices.find(i => i.index === option.label);
+        if (indexInfo) {
+          docCount = parseInt(indexInfo['docs.count'] || '0');
+          size = indexInfo['store.size'] || '0b';
         }
         
         flattenedItems.push({
-          name: option.label, // Keep original name for selection logic
-          displayName, // Display name with cluster prefix and alias indicator
-          type,
-          group: group.label,
+          name: indexName,
+          displayName,
+          type: 'index',
+          cluster: clusterName,
           docCount,
+          size,
+        });
+      });
+      
+      // Then process aliases
+      groupData.aliases.forEach((option: any) => {
+        const aliasName = option.label; // Keep original name
+        const displayName = `${aliasName} (alias)`;
+        
+        let size = '';
+        const aliasInfo = visibleAliases.find(a => a.alias === option.label);
+        size = aliasInfo ? `Alias for: ${aliasInfo.index}` : 'Alias';
+        
+        flattenedItems.push({
+          name: aliasName,
+          displayName,
+          type: 'alias',
+          cluster: clusterName,
+          docCount: 0,
           size,
         });
       });
@@ -210,17 +258,6 @@ export function EnhancedSelectionModal({
       totalItemCount: filteredIndices.length,
     };
   }, [filteredIndices, pageIndex, pageSize]);
-
-  const handleSearchChange = debounce(async (searchValue: string) => {
-    const sanitizedQuery = sanitizeSearchText(searchValue);
-    setSearchText(sanitizedQuery);
-    setPageIndex(0); // Reset to first page on search
-    
-    if (selectedClusters.length > 0) {
-      const clustersString = getClustersStringForSearchQuery(selectedClusters);
-      await dispatch(getPrioritizedIndices(sanitizedQuery, dataSourceId, clustersString));
-    }
-  }, 300);
 
   const onTableChange = ({ page = {} }) => {
     const { index: newPageIndex, size: newPageSize } = page;
@@ -254,24 +291,16 @@ export function EnhancedSelectionModal({
   const visibleClusters = get(opensearchState, 'clusters', []) as ClusterInfo[];
 
   return (
-    <EuiModal onClose={handleClose} style={{ width: 800 }}>
+    <EuiModal onClose={handleClose} style={{ width: 1200 }}>
       <EuiModalHeader>
         <EuiModalHeaderTitle>
           Select Indices for Auto Insights
         </EuiModalHeaderTitle>
       </EuiModalHeader>
       
-      <EuiModalBody>
-        <EuiText size="s" color="subdued">
-          <p>Choose indices where you want to automatically create anomaly detectors and generate daily insights.</p>
-        </EuiText>
-        <EuiSpacer size="m" />
-
+      <EuiModalBody style={{ maxHeight: '70vh', overflowY: 'auto' }}>
         {/* Cluster Selection */}
-        <EuiFormRow
-          label="Clusters"
-          helpText="Select clusters to search for indices"
-        >
+        <EuiFormRow label="Clusters">
           <EuiCompressedComboBox
             placeholder="Select clusters"
             options={getVisibleClusterOptions(visibleClusters)}
@@ -282,37 +311,36 @@ export function EnhancedSelectionModal({
           />
         </EuiFormRow>
 
-        <EuiSpacer size="m" />
+        <EuiSpacer size="s" />
         
         {/* Selection Summary */}
         {selectedIndices.length > 0 && (
           <>
-            <EuiPanel color="success" paddingSize="s">
-              <EuiFlexGroup alignItems="center" justifyContent="spaceBetween">
+            <EuiPanel color="success" paddingSize="xs">
+              <EuiFlexGroup alignItems="center" justifyContent="spaceBetween" gutterSize="s">
                 <EuiFlexItem>
-                  <EuiText size="s"><strong>Selected: {selectedIndices.length} indices</strong></EuiText>
-                  <EuiSpacer size="xs" />
+                  <EuiText size="xs"><strong>{selectedIndices.length} selected</strong></EuiText>
                   <EuiFlexGroup wrap gutterSize="xs">
-                    {selectedIndices.slice(0, 5).map(index => (
+                    {selectedIndices.slice(0, 3).map(index => (
                       <EuiFlexItem grow={false} key={index}>
-                        <EuiBadge color="success">{index}</EuiBadge>
+                        <EuiBadge color="success" style={{ fontSize: '11px' }}>{index}</EuiBadge>
                       </EuiFlexItem>
                     ))}
-                    {selectedIndices.length > 5 && (
+                    {selectedIndices.length > 3 && (
                       <EuiFlexItem grow={false}>
-                        <EuiBadge color="hollow">+{selectedIndices.length - 5} more</EuiBadge>
+                        <EuiBadge color="hollow" style={{ fontSize: '11px' }}>+{selectedIndices.length - 3}</EuiBadge>
                       </EuiFlexItem>
                     )}
                   </EuiFlexGroup>
                 </EuiFlexItem>
                 <EuiFlexItem grow={false}>
                   <EuiSmallButton size="s" onClick={() => onSelectionChange([])}>
-                    Clear All
+                    Clear
                   </EuiSmallButton>
                 </EuiFlexItem>
               </EuiFlexGroup>
             </EuiPanel>
-            <EuiSpacer size="m" />
+            <EuiSpacer size="xs" />
           </>
         )}
         
@@ -322,9 +350,8 @@ export function EnhancedSelectionModal({
           compressed 
           value={searchText}
           onChange={(e) => {
-            setSearchText(e.target.value);
-            setPageIndex(0);
-            handleSearchChange(e.target.value);
+            const value = e.target.value;
+            handleSearchChange(value);
           }}
         />
         <EuiSpacer size="s" />
@@ -338,29 +365,29 @@ export function EnhancedSelectionModal({
           columns={[
             {
               field: 'name',
-              name: `Index Pattern (${totalItemCount} total, ${selectedIndices.length} selected)`,
+              name: `Indices, Aliases & Patterns (${totalItemCount} total, ${selectedIndices.length} selected)`,
               render: (name: string, item: any) => (
                 <EuiCheckbox
-                  id={name}
+                  id={`index-${name}-${pageIndex}`}
                   label={
-                    <EuiFlexGroup alignItems="center" gutterSize="s">
+                    <EuiFlexGroup alignItems="center" gutterSize="xs">
                       <EuiFlexItem grow={false}>
-                        <EuiIcon type={item.type === 'alias' ? 'alias' : 'indexManagementApp'} />
+                        <EuiIcon type={item.type === 'alias' ? 'alias' : 'indexManagementApp'} size="s" />
                       </EuiFlexItem>
                       <EuiFlexItem>
-                        <EuiText size="s">{item.displayName || name}</EuiText>
+                        <EuiText size="xs">{item.displayName || name}</EuiText>
                         {item.type === 'alias' && (
-                          <EuiText size="xs" color="subdued">{item.size}</EuiText>
+                          <EuiText size="xs" color="subdued" style={{ fontSize: '10px' }}>{item.size}</EuiText>
                         )}
                       </EuiFlexItem>
                       {item.type === 'index' && item.docCount > 0 && (
                         <EuiFlexItem grow={false}>
-                          <EuiBadge color="hollow">{item.docCount.toLocaleString()} docs</EuiBadge>
+                          <EuiBadge color="hollow" style={{ fontSize: '10px' }}>{item.docCount.toLocaleString()}</EuiBadge>
                         </EuiFlexItem>
                       )}
                       {item.isSelected && (
                         <EuiFlexItem grow={false}>
-                          <EuiBadge color="success">Selected</EuiBadge>
+                          <EuiBadge color="success" style={{ fontSize: '10px' }}>✓</EuiBadge>
                         </EuiFlexItem>
                       )}
                     </EuiFlexGroup>
@@ -378,7 +405,6 @@ export function EnhancedSelectionModal({
             pageSizeOptions: [5, 10, 20, 50],
           }}
           onChange={onTableChange}
-          loading={opensearchState.requesting}
           rowProps={(item) => ({
             style: {
               backgroundColor: item.isSelected ? '#F0F9FF' : 'transparent',
@@ -399,7 +425,7 @@ export function EnhancedSelectionModal({
           onClick={onConfirm}
           isLoading={isLoading}
         >
-          Confirm Selection ({selectedIndices.length})
+          Add Selected Indices ({selectedIndices.length})
         </EuiSmallButton>
       </EuiModalFooter>
     </EuiModal>

@@ -125,6 +125,8 @@ export function IndicesManagement() {
     setIsLoading(false);
   };
 
+  const [selectedModalIndices, setSelectedModalIndices] = useState<string[]>([]);
+
   const handleStartAutoInsights = async (selectedIndices: string[]) => {
     setIsStartingInsights(true);
     try {
@@ -322,13 +324,15 @@ export function IndicesManagement() {
 
       <EnhancedSelectionModal
         isVisible={isModalVisible}
-        selectedIndices={[]} // Start fresh for adding new indices
-        onSelectionChange={(indices) => {
-          // Handle the selection and trigger auto-create
-          handleStartAutoInsights(indices);
+        selectedIndices={selectedModalIndices}
+        onSelectionChange={setSelectedModalIndices}
+        onCancel={() => {
+          setIsModalVisible(false);
+          setSelectedModalIndices([]);
         }}
-        onCancel={() => setIsModalVisible(false)}
-        onConfirm={() => setIsModalVisible(false)}
+        onConfirm={() => {
+          handleStartAutoInsights(selectedModalIndices);
+        }}
         isLoading={isStartingInsights}
       />
     </React.Fragment>
