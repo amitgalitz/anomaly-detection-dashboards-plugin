@@ -48,6 +48,7 @@ import {
   getDataSourceFromURL,
   getLocalCluster,
   sanitizeSearchText,
+  getVisibleOptions,
 } from '../../../utils/helpers';
 import { getClusterOptionLabel } from '../../../DefineDetector/utils/helpers';
 
@@ -138,25 +139,62 @@ export function EnhancedSelectionModal({
   // Get real indices and aliases from redux state
   const visibleIndices = get(opensearchState, 'indices', []) as CatIndex[];
   const visibleAliases = get(opensearchState, 'aliases', []) as IndexAlias[];
+  const localClusterName = selectedClusters.find(c => c.localcluster === 'true')?.cluster || '';
 
-  // Combine indices and aliases
+  // Use same ordering as DataSource.tsx
+  const groupedOptions = useMemo(() => {
+    return getVisibleOptions(visibleIndices, visibleAliases, localClusterName);
+  }, [visibleIndices, visibleAliases, localClusterName]);
+
+  // Flatten grouped options with cluster prefixes and alias indicators
   const allIndices = useMemo(() => {
-    const indexItems = visibleIndices.map(index => ({
-      name: index.index,
-      type: 'index' as const,
-      docCount: parseInt(index['docs.count'] || '0'),
-      size: index['store.size'] || '0b',
-    }));
+    const flattenedItems: Array<{name: string, displayName: string, type: 'index' | 'alias', group: string, docCount?: number, size?: string}> = [];
     
-    const aliasItems = visibleAliases.map(alias => ({
-      name: alias.alias,
-      type: 'alias' as const,
-      docCount: 0,
-      size: `Alias for: ${alias.index}`,
-    }));
+    groupedOptions.forEach(group => {
+      // Determine cluster prefix from group label
+      const isLocal = group.label.toLowerCase().includes('local');
+      const clusterPrefix = isLocal ? '[Local]' : '[Remote]';
+      
+      group.options.forEach((option: any) => {
+        // Determine if it's an index or alias based on the group label
+        const isAlias = group.label.toLowerCase().includes('alias');
+        const isIndex = group.label.toLowerCase().includes('indice');
+        
+        let type: 'index' | 'alias' = 'index';
+        let docCount = 0;
+        let size = '';
+        let displayName = '';
+        
+        if (isAlias) {
+          type = 'alias';
+          displayName = `${clusterPrefix} ${option.label} (alias)`;
+          // Find the corresponding alias to get target index
+          const aliasInfo = visibleAliases.find(a => a.alias === option.label);
+          size = aliasInfo ? `Alias for: ${aliasInfo.index}` : 'Alias';
+        } else if (isIndex) {
+          type = 'index';
+          displayName = `${clusterPrefix} ${option.label}`;
+          // Find the corresponding index to get doc count and size
+          const indexInfo = visibleIndices.find(i => i.index === option.label);
+          if (indexInfo) {
+            docCount = parseInt(indexInfo['docs.count'] || '0');
+            size = indexInfo['store.size'] || '0b';
+          }
+        }
+        
+        flattenedItems.push({
+          name: option.label, // Keep original name for selection logic
+          displayName, // Display name with cluster prefix and alias indicator
+          type,
+          group: group.label,
+          docCount,
+          size,
+        });
+      });
+    });
     
-    return [...indexItems, ...aliasItems];
-  }, [visibleIndices, visibleAliases]);
+    return flattenedItems;
+  }, [groupedOptions, visibleIndices, visibleAliases]);
 
   const filteredIndices = useMemo(() => {
     return allIndices.filter(item => 
@@ -283,11 +321,15 @@ export function EnhancedSelectionModal({
           placeholder="Search indices..." 
           compressed 
           value={searchText}
-          onChange={(e) => handleSearchChange(e.target.value)}
+          onChange={(e) => {
+            setSearchText(e.target.value);
+            setPageIndex(0);
+            handleSearchChange(e.target.value);
+          }}
         />
         <EuiSpacer size="s" />
         
-        {/* Paginated Table */}
+        {/* Simple Paginated Table */}
         <EuiBasicTable
           items={pageOfItems.map(item => ({ 
             ...item,
@@ -306,7 +348,7 @@ export function EnhancedSelectionModal({
                         <EuiIcon type={item.type === 'alias' ? 'alias' : 'indexManagementApp'} />
                       </EuiFlexItem>
                       <EuiFlexItem>
-                        <EuiText size="s">{name}</EuiText>
+                        <EuiText size="s">{item.displayName || name}</EuiText>
                         {item.type === 'alias' && (
                           <EuiText size="xs" color="subdued">{item.size}</EuiText>
                         )}
