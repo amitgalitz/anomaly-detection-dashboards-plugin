@@ -26,6 +26,9 @@ import {
   EuiButtonEmpty,
   EuiDescriptionList,
   EuiCodeBlock,
+  EuiFlexGroup,
+  EuiFlexItem,
+  EuiToolTip,
 } from '@elastic/eui';
 import React, { useState, useEffect, useMemo, Fragment } from 'react';
 import ReactDOM from 'react-dom';
@@ -53,10 +56,12 @@ import {
 import { prettifyErrorMessage } from '../../../../server/utils/helpers';
 import { DAILY_INSIGHTS_ENABLED } from '../../../../utils/constants';
 import moment from 'moment';
+import { EnhancedSelectionModal } from '../components/EnhancedSelectionModal';
 
 interface DailyInsightsProps extends RouteComponentProps {
   setActionMenu: (menuMount: MountPoint | undefined) => void;
   landingDataSourceId: string | undefined;
+  forceOverviewMode?: boolean;
 }
 
 interface InsightResult {
@@ -98,6 +103,10 @@ export function DailyInsights(props: DailyInsightsProps) {
   const [insightsResults, setInsightsResults] = useState<InsightResult[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<{paragraph: Paragraph, result: InsightResult} | null>(null);
   const [featureEnabled, setFeatureEnabled] = useState<boolean>(false);
+  
+  // Index selection for setup flow
+  const [selectedIndicesForSetup, setSelectedIndicesForSetup] = useState<string[]>([]);
+  const [isIndexSelectionModalVisible, setIsIndexSelectionModalVisible] = useState(false);
   
   const useUpdatedUX = getUISettings().get(USE_NEW_HOME_PAGE);
   const { HeaderControl } = getNavigationUI();
@@ -160,17 +169,10 @@ export function DailyInsights(props: DailyInsightsProps) {
 
   // Set breadcrumbs
   useEffect(() => {
-    if (dataSourceEnabled) {
-      core.chrome.setBreadcrumbs([
-        MDS_BREADCRUMBS.ANOMALY_DETECTOR(MDSInsightsState.selectedDataSourceId),
-        { text: 'Daily Insights' },
-      ]);
-    } else {
-      core.chrome.setBreadcrumbs([
-        BREADCRUMBS.ANOMALY_DETECTOR,
-        { text: 'Daily Insights' },
-      ]);
-    }
+    console.log('Setting breadcrumbs in DailyInsights');
+    core.chrome.setBreadcrumbs([BREADCRUMBS.DAILY_INSIGHTS]);
+    // Set page title
+    core.chrome.docTitle.change('Daily Insights');
   }, [MDSInsightsState]);
 
   // Fetch status and results
@@ -265,8 +267,21 @@ export function DailyInsights(props: DailyInsightsProps) {
   };
 
   const handleStartInsights = async () => {
+    // If no indices selected, show selection modal first
+    if (selectedIndicesForSetup.length === 0) {
+      setIsIndexSelectionModalVisible(true);
+      return;
+    }
+
     setIsStarting(true);
     try {
+      // 1. Execute agent to create detectors for selected indices
+      // TODO: Add agent execution API call
+      // await core?.http.post(`..${AD_NODE_API.AGENT_EXECUTE}/${MDSInsightsState.selectedDataSourceId}`, {
+      //   body: JSON.stringify({ indices: selectedIndicesForSetup })
+      // });
+
+      // 2. Start insights job
       const apiPath = MDSInsightsState.selectedDataSourceId
         ? `${AD_NODE_API.INSIGHTS_START}/${MDSInsightsState.selectedDataSourceId}`
         : AD_NODE_API.INSIGHTS_START;
@@ -279,7 +294,7 @@ export function DailyInsights(props: DailyInsightsProps) {
       
       core?.notifications.toasts.addSuccess({
         title: 'Insights job started successfully',
-        text: response?.message || 'The insights generation job has been initiated.',
+        text: `Auto-created detectors for ${selectedIndicesForSetup.length} indices. ${response?.message || 'The insights generation job has been initiated.'}`,
       });
 
       setIsRefreshing(true);
@@ -605,13 +620,41 @@ export function DailyInsights(props: DailyInsightsProps) {
 
   const renderSetupView = () => (
     <EuiEmptyPrompt
+      data-test-subj="dailyInsightsSetupPrompt"
       icon={<span style={{ fontSize: '64px' }}>🔍</span>}
       title={<h2>Daily Insights Not Configured</h2>}
       body={
-        <p>
+        <p data-test-subj="setupDescription">
           Daily Insights analyzes your anomaly detection results to identify patterns and correlations across your detectors.
-          Click the "Start Insights Job" button in the top-right corner to begin generating daily summaries.
+          Select indices to monitor and we'll automatically create optimized detectors and start generating daily insights.
         </p>
+      }
+      actions={
+        selectedIndicesForSetup.length === 0 ? (
+          <EuiSmallButton
+            color="primary"
+            fill
+            iconType="plus"
+            onClick={() => {
+              console.log('Button clicked, opening modal');
+              setIsIndexSelectionModalVisible(true);
+            }}
+            data-test-subj="selectIndicesToMonitorButton"
+          >
+            Select Indices to Monitor
+          </EuiSmallButton>
+        ) : (
+          <EuiSmallButton
+            color="primary"
+            fill
+            iconType="play"
+            onClick={handleStartInsights}
+            isLoading={isStarting}
+            data-test-subj="startAutoInsightsButton"
+          >
+            Start Auto Insights for {selectedIndicesForSetup.length} Indices
+          </EuiSmallButton>
+        )
       }
     />
   );
@@ -683,9 +726,75 @@ export function DailyInsights(props: DailyInsightsProps) {
         </Fragment>
       ) : (
         <div style={{ paddingLeft: '24px', paddingRight: '24px' }}>
-          {renderSetupView()}
+          <EuiSpacer size="l" />
+          <EuiPanel hasBorder paddingSize="l" data-test-subj="dailyInsightsSetupPanel">
+            {renderSetupView()}
+            
+            {/* Selected indices panel - inside main panel */}
+            {selectedIndicesForSetup.length > 0 && (
+              <Fragment>
+                <EuiSpacer size="l" />
+                <EuiPanel color="success" paddingSize="m" data-test-subj="selectedIndicesPanel">
+                  <EuiText size="s" data-test-subj="selectedIndicesCount">
+                    <strong>{selectedIndicesForSetup.length} indices selected</strong>
+                  </EuiText>
+                  <EuiSpacer size="s" />
+                  <EuiFlexGroup wrap gutterSize="s" data-test-subj="selectedIndicesBadges">
+                    {selectedIndicesForSetup.map((index, i) => (
+                      <EuiFlexItem grow={false} key={i}>
+                        <EuiBadge color="success" iconType="indexManagementApp" data-test-subj={`selectedIndexBadge-${i}`}>
+                          {index}
+                        </EuiBadge>
+                      </EuiFlexItem>
+                    ))}
+                  </EuiFlexGroup>
+                  <EuiSpacer size="m" />
+                  <EuiFlexGroup justifyContent="spaceBetween" alignItems="center" data-test-subj="selectedIndicesActions">
+                    <EuiFlexItem grow={true}>
+                      <EuiText size="s" color="subdued" data-test-subj="readyToCreateMessage">
+                        Ready to create detectors and start insights for {selectedIndicesForSetup.length} indices
+                      </EuiText>
+                    </EuiFlexItem>
+                    <EuiFlexItem grow={false}>
+                      <EuiFlexGroup gutterSize="s">
+                        <EuiFlexItem grow={false}>
+                          <EuiSmallButton onClick={() => setIsIndexSelectionModalVisible(true)} data-test-subj="editSelectionButton">
+                            Edit Selection
+                          </EuiSmallButton>
+                        </EuiFlexItem>
+                        <EuiFlexItem grow={false}>
+                          <EuiSmallButton color="danger" onClick={() => setSelectedIndicesForSetup([])} data-test-subj="clearSelectionButton">
+                            Clear Selection
+                          </EuiSmallButton>
+                        </EuiFlexItem>
+                      </EuiFlexGroup>
+                    </EuiFlexItem>
+                  </EuiFlexGroup>
+                </EuiPanel>
+              </Fragment>
+            )}
+          </EuiPanel>
         </div>
       )}
+
+      {/* Index Selection Modal */}
+      <EnhancedSelectionModal
+        isVisible={isIndexSelectionModalVisible}
+        selectedIndices={selectedIndicesForSetup}
+        onSelectionChange={(indices) => {
+          console.log('Selection changed:', indices);
+          setSelectedIndicesForSetup(indices);
+        }}
+        onCancel={() => {
+          console.log('Modal cancelled');
+          setIsIndexSelectionModalVisible(false);
+        }}
+        onConfirm={() => {
+          console.log('Modal confirmed');
+          setIsIndexSelectionModalVisible(false);
+        }}
+        isLoading={isStarting}
+      />
     </Fragment>
   );
 }
