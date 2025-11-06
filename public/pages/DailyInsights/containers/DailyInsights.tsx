@@ -125,9 +125,9 @@ export function DailyInsights(props: DailyInsightsProps) {
   
   const [MDSInsightsState, setMDSInsightsState] = useState<MDSStates>({
     queryParams,
-    selectedDataSourceId: queryParams.dataSourceId === undefined
-      ? undefined
-      : queryParams.dataSourceId,
+    selectedDataSourceId: dataSourceEnabled
+      ? (queryParams.dataSourceId || undefined)
+      : undefined,
   });
 
   // Check if the feature is enabled via UI settings
@@ -155,7 +155,7 @@ export function DailyInsights(props: DailyInsightsProps) {
       );
     } else {
       setMDSInsightsState({
-        queryParams: dataSourceId,
+        queryParams: { dataSourceId: dataSourceId ?? '' },
         selectedDataSourceId: dataSourceId,
       });
     }
@@ -200,10 +200,6 @@ export function DailyInsights(props: DailyInsightsProps) {
       
       setInsightsEnabled(enabled);
       setInsightsSchedule(schedule);
-
-      if (enabled) {
-        await fetchInsightsResults();
-      }
     } catch (error: any) {
       console.error('Error fetching insights status:', error);
       setInsightsEnabled(false);
@@ -212,6 +208,12 @@ export function DailyInsights(props: DailyInsightsProps) {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (insightsEnabled) {
+      fetchInsightsResults();
+    }
+  }, [insightsEnabled, insightsSchedule, MDSInsightsState.selectedDataSourceId]);
 
   const fetchInsightsResults = async () => {
     try {
