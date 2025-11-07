@@ -18,6 +18,7 @@ import {
   EuiPanel,
   EuiSpacer,
   EuiFieldSearch,
+  EuiFieldText,
   EuiCheckbox,
   EuiText,
   EuiSmallButton,
@@ -65,6 +66,7 @@ interface EnhancedSelectionModalProps {
   onSelectionChange: (indices: string[]) => void;
   onCancel: () => void;
   onConfirm: () => void;
+  onStartInsights?: (indices: string[], agentId: string) => Promise<void>;
   isLoading?: boolean;
 }
 
@@ -74,11 +76,48 @@ export function EnhancedSelectionModal({
   onSelectionChange,
   onCancel,
   onConfirm,
+  onStartInsights,
   isLoading = false,
 }: EnhancedSelectionModalProps) {
   const dispatch = useDispatch();
   const location = useLocation();
   const MDSQueryParams = getDataSourceFromURL(location);
+  
+  // Step tracking: 'selection' or 'confirmation'
+  const [currentStep, setCurrentStep] = useState<'selection' | 'confirmation'>('selection');
+  const [isStartingJob, setIsStartingJob] = useState(false);
+  const [agentId, setAgentId] = useState('auto-create-detector-agent');
+
+  // Reset to selection step when modal opens
+  useEffect(() => {
+    if (isVisible) {
+      setCurrentStep('selection');
+      setIsStartingJob(false);
+    }
+  }, [isVisible]);
+
+  const handleAddSelectedIndices = () => {
+    onConfirm(); // Update parent state
+    setCurrentStep('confirmation'); // Move to step 2
+  };
+
+  const handleBackToSelection = () => {
+    setCurrentStep('selection');
+  };
+
+  const handleStartInsights = async () => {
+    if (!onStartInsights) return;
+    
+    setIsStartingJob(true);
+    try {
+      await onStartInsights(selectedIndices, agentId);
+      // Modal will close from parent component after successful start
+    } catch (error) {
+      console.error('Error starting insights:', error);
+    } finally {
+      setIsStartingJob(false);
+    }
+  };
   const dataSourceId = MDSQueryParams.dataSourceId;
   
   const opensearchState = useSelector((state: AppState) => state.opensearch);
@@ -300,6 +339,9 @@ export function EnhancedSelectionModal({
       </EuiModalHeader>
       
       <EuiModalBody style={{ maxHeight: '70vh', overflowY: 'auto', minHeight: 400 }}>
+        {currentStep === 'selection' ? (
+          // Step 1: Index selection
+          <>
         {/* Cluster Selection */}
         <EuiFormRow label="Clusters">
           <EuiCompressedComboBox
@@ -422,21 +464,84 @@ export function EnhancedSelectionModal({
             })}
           />
         </div>
+          </>
+        ) : (
+          // Step 2: Confirmation
+          <>
+            <EuiText>
+              <h3>Confirm Auto Insights Setup</h3>
+              <p>
+                You're about to start auto insights for <strong>{selectedIndices.length} indices</strong>. 
+                This will automatically create anomaly detectors and begin generating daily insights.
+              </p>
+            </EuiText>
+            
+            <EuiSpacer size="m" />
+
+            <EuiFormRow label="ML Agent ID" helpText="The ML Commons agent ID for creating detectors">
+              <EuiFieldText
+                value={agentId}
+                onChange={(e) => setAgentId(e.target.value)}
+                placeholder="Enter agent ID"
+              />
+            </EuiFormRow>
+            
+            <EuiSpacer size="m" />
+            
+            <EuiPanel paddingSize="m" color="subdued">
+              <EuiText size="s">
+                <strong>Selected Indices ({selectedIndices.length}):</strong>
+              </EuiText>
+              <EuiSpacer size="s" />
+              <EuiFlexGroup wrap gutterSize="s">
+                {selectedIndices.map((index, i) => (
+                  <EuiFlexItem grow={false} key={i}>
+                    <EuiBadge color="primary">{index}</EuiBadge>
+                  </EuiFlexItem>
+                ))}
+              </EuiFlexGroup>
+            </EuiPanel>
+          </>
+        )}
       </EuiModalBody>
 
       <EuiModalFooter>
-        <EuiSmallButton onClick={handleClose}>
-          Cancel
-        </EuiSmallButton>
-        <EuiSmallButton
-          fill
-          color="primary"
-          disabled={selectedIndices.length === 0}
-          onClick={onConfirm}
-          isLoading={isLoading}
-        >
-          Add Selected Indices ({selectedIndices.length})
-        </EuiSmallButton>
+        {currentStep === 'selection' ? (
+          // Step 1: Selection buttons
+          <>
+            <EuiSmallButton onClick={handleClose}>
+              Cancel
+            </EuiSmallButton>
+            <EuiSmallButton
+              fill
+              color="primary"
+              disabled={selectedIndices.length === 0}
+              onClick={handleAddSelectedIndices}
+              isLoading={isLoading}
+            >
+              Confirm Selected Indices ({selectedIndices.length})
+            </EuiSmallButton>
+          </>
+        ) : (
+          // Step 2: Confirmation buttons
+          <>
+            <EuiSmallButton onClick={handleBackToSelection}>
+              Back to Selection
+            </EuiSmallButton>
+            <EuiSmallButton onClick={handleClose}>
+              Cancel
+            </EuiSmallButton>
+            <EuiSmallButton
+              fill
+              color="success"
+              onClick={handleStartInsights}
+              isLoading={isStartingJob}
+              iconType="play"
+            >
+              Start Auto Insights
+            </EuiSmallButton>
+          </>
+        )}
       </EuiModalFooter>
     </EuiModal>
   );

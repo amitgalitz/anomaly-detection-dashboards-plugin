@@ -36,18 +36,19 @@ import { getDetectorList } from '../../../redux/reducers/ad';
 import { AppState } from '../../../redux/reducers';
 import { CoreServicesConsumer } from '../../../components/CoreServices/CoreServices';
 import { CoreStart } from '../../../../../../src/core/public';
-import { getDataSourceEnabled } from '../../../services';
-import { BREADCRUMBS, AD_NODE_API } from '../../../utils/constants';
+import { getDataSourceEnabled, getApplication, getNotifications } from '../../../services';
+import { BREADCRUMBS, DAILY_INSIGHTS_OVERVIEW_PAGE_NAV_ID, PLUGIN_NAME } from '../../../utils/constants';
 import { useHistory } from 'react-router-dom';
+import queryString from 'querystring';
+import { prettifyErrorMessage } from '../../../../server/utils/helpers';
+import { DetectorListItem, MDSStates } from '../../../models/interfaces';
+import { AD_NODE_API } from '../../../../utils/constants';
+
 
 interface IndexInsightData {
   indexName: string;
-  detectors: string[];
-  lastAnomaly: {
-    timestamp: string;
-    severity: 'low' | 'medium' | 'high';
-    count: number;
-  } | null;
+  detectors: DetectorListItem[];
+  overallStatus: string;
 }
 
 export function IndicesManagement() {
@@ -63,18 +64,25 @@ export function IndicesManagement() {
 function IndicesManagementContent({ core }: { core: CoreStart }) {
   const dispatch = useDispatch();
   const location = useLocation();
-  const MDSQueryParams = getDataSourceFromURL(location);
-  const dataSourceId = MDSQueryParams.dataSourceId;
+  const queryParams = getDataSourceFromURL(location);
+  
+  const dataSourceId = queryParams.dataSourceId;
   const dataSourceEnabled = !!getDataSourceEnabled().enabled;
   
   const adState = useSelector((state: AppState) => state.ad);
-  
   const [indicesData, setIndicesData] = useState<IndexInsightData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isStartingInsights, setIsStartingInsights] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [insightsEnabled, setInsightsEnabled] = useState(false);
+    const [MDSInsightsState, setMDSInsightsState] = useState<MDSStates>({
+      queryParams,
+      selectedDataSourceId: queryParams.dataSourceId === undefined
+        ? undefined
+        : queryParams.dataSourceId,
+    });
   
+
   const history = useHistory();
 
   // Set breadcrumbs
@@ -94,21 +102,54 @@ function IndicesManagementContent({ core }: { core: CoreStart }) {
     return () => clearInterval(interval);
   }, [dataSourceId]);
 
-  const fetchInsightsStatus = async () => {
-    try {
-      const statusPath = dataSourceId
-        ? `${AD_NODE_API.INSIGHTS_STATUS}/${dataSourceId}`
+// Use this in useEffect and fetchInsightsStatus
+useEffect(() => {
+  fetchInsightsStatus();
+}, [dataSourceId]);
+
+const fetchInsightsStatus = async () => {
+  try {
+      const statusPath = MDSInsightsState.selectedDataSourceId
+        ? `${AD_NODE_API.INSIGHTS_STATUS}/${MDSInsightsState.selectedDataSourceId}`
         : AD_NODE_API.INSIGHTS_STATUS;
       
       const statusResponse = await core?.http.get(statusPath);
       const enabled = statusResponse?.response?.enabled || false;
-      
-      setInsightsEnabled(enabled);
-    } catch (error: any) {
-      console.error('Error fetching insights status:', error);
-      setInsightsEnabled(false);
+
+    setInsightsEnabled(enabled);
+  } catch (error: any) {
+    console.error('Error fetching insights status:', error);
+    setInsightsEnabled(false);
+  }
+};
+
+  const handleDataSourceChange = (dataSources: any[]) => {
+    const dataSourceId = dataSources[0]?.id;
+    if (dataSourceEnabled && dataSourceId === undefined) {
+      getNotifications().toasts.addDanger(
+        prettifyErrorMessage('Unable to set data source.')
+      );
+    } else {
+      setMDSInsightsState({
+        queryParams: dataSourceId,
+        selectedDataSourceId: dataSourceId,
+      });
     }
   };
+
+  // Update URL params when data source changes
+  useEffect(() => {
+    if (dataSourceEnabled) {
+      const updatedParams = {
+        dataSourceId: MDSInsightsState.selectedDataSourceId,
+      };
+      history.replace({
+        ...location,
+        search: queryString.stringify(updatedParams),
+      });
+    }
+  }, [MDSInsightsState]);
+
 
   // Process detectors when they change
   useEffect(() => {
@@ -130,39 +171,53 @@ function IndicesManagementContent({ core }: { core: CoreStart }) {
   const processDetectors = () => {
     setIsLoading(true);
     
-    console.log('All detectors:', adState.detectorList);
+    let detectors = [];
+    if (adState.detectorList) {
+      if (Array.isArray(adState.detectorList)) {
+        detectors = adState.detectorList;
+      } else {
+        detectors = Object.values(adState.detectorList);
+      }
+    }
     
-    // Filter for auto-created detectors
-    const detectors = Array.isArray(adState.detectorList) ? adState.detectorList : [];
-    const autoCreatedDetectors = detectors.filter(detector => detector.auto_created === true);
+    const autoCreatedDetectors = detectors.filter(detector => 
+      detector.auto_created === true || detector.autoCreated === true
+    );
     
-    console.log('Auto-created detectors:', autoCreatedDetectors);
-    
-    // Group by index pattern
-    const indexGroups = new Map<string, { detectors: string[], lastAnomaly: any }>();
+    const indexGroups = new Map<string, { detectors: DetectorListItem[] }>();
     
     autoCreatedDetectors.forEach(detector => {
       detector.indices.forEach(indexPattern => {
         if (!indexGroups.has(indexPattern)) {
-          indexGroups.set(indexPattern, {
-            detectors: [],
-            lastAnomaly: null, // TODO: Get from insights API
-          });
+          indexGroups.set(indexPattern, { detectors: [] });
         }
-        indexGroups.get(indexPattern)!.detectors.push(detector.name);
+        indexGroups.get(indexPattern)!.detectors.push(detector);
       });
     });
     
-    console.log('Index groups:', Array.from(indexGroups.entries()));
-    
-    // Convert to display format
-    const indicesData: IndexInsightData[] = Array.from(indexGroups.entries()).map(([indexName, data]) => ({
-      indexName,
-      detectors: data.detectors,
-      lastAnomaly: data.lastAnomaly,
-    }));
-    
-    console.log('Final indices data:', indicesData);
+    const indicesData: IndexInsightData[] = Array.from(indexGroups.entries()).map(([indexName, data]) => {
+      const states = data.detectors.map(d => d.curState);
+      const running = states.filter(s => s === 'Running').length;
+      const stopped = states.filter(s => s === 'Stopped').length;
+      const total = states.length;
+
+      let overallStatus = '';
+      if (running === total) {
+        overallStatus = 'All Running';
+      } else if (stopped === total) {
+        overallStatus = 'All Stopped';
+      } else if (running > 0 && stopped > 0) {
+        overallStatus = `${running} Running, ${stopped} Stopped`;
+      } else {
+        overallStatus = `${total} Detectors`;
+      }
+
+      return {
+        indexName,
+        detectors: data.detectors,
+        overallStatus,
+      };
+    });
     
     setIndicesData(indicesData);
     setIsLoading(false);
@@ -173,16 +228,6 @@ function IndicesManagementContent({ core }: { core: CoreStart }) {
   const handleStartAutoInsights = async (selectedIndices: string[]) => {
     setIsStartingInsights(true);
     try {
-      // 1. Execute agent to create detectors
-      // TODO: Implement executeAutoCreateAgent redux action
-      // await dispatch(executeAutoCreateAgent(selectedIndices, dataSourceId));
-      
-      // 2. Start insights job for the domain
-      // TODO: Implement startInsightsJob redux action  
-      // await dispatch(startInsightsJob(selectedIndices, dataSourceId));
-      
-      // 3. Refresh data
-      loadIndicesData();
       setIsModalVisible(false);
     } catch (error) {
       console.error('Error starting auto insights:', error);
@@ -191,23 +236,40 @@ function IndicesManagementContent({ core }: { core: CoreStart }) {
     }
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'high':
-        return 'danger';
-      case 'medium':
-        return 'warning';
-      case 'low':
-        return 'success';
-      default:
-        return 'subdued';
+
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRowExpansion = (indexName: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(indexName)) {
+      newExpanded.delete(indexName);
+    } else {
+      newExpanded.add(indexName);
     }
+    setExpandedRows(newExpanded);
+  };
+
+  const getStateColor = (state: string) => {
+    switch (state) {
+      case 'Running': return 'success';
+      case 'Stopped': return 'danger';
+      case 'Initializing': return 'warning';
+      case 'Failed': return 'danger';
+      default: return 'subdued';
+    }
+  };
+
+  const getOverallStatusColor = (status: string) => {
+    if (status.includes('All Running')) return 'success';
+    if (status.includes('All Stopped')) return 'danger';
+    if (status.includes('Mixed')) return 'warning';
+    return 'primary';
   };
 
   const columns = [
     {
       field: 'indexName',
-      name: 'Index Pattern',
+      name: 'Index',
       sortable: true,
       render: (indexName: string) => (
         <EuiFlexGroup alignItems="center" gutterSize="s">
@@ -225,49 +287,65 @@ function IndicesManagementContent({ core }: { core: CoreStart }) {
     {
       field: 'detectors',
       name: 'Auto-Created Detectors',
-      render: (detectors: string[]) => (
-        <EuiFlexGroup direction="column" gutterSize="xs">
-          {detectors.length > 0 ? (
-            detectors.map((detector, index) => (
-              <EuiFlexItem key={index}>
-                <EuiLink size="s">{detector}</EuiLink>
-              </EuiFlexItem>
-            ))
-          ) : (
-            <EuiText size="s" color="subdued">
-              No detectors created
-            </EuiText>
-          )}
-        </EuiFlexGroup>
-      ),
-    },
-    {
-      field: 'lastAnomaly',
-      name: 'Last Anomaly',
-      render: (lastAnomaly: IndexInsightData['lastAnomaly']) => {
-        if (!lastAnomaly) {
-          return (
-            <EuiText size="s" color="subdued">
-              No anomalies detected
-            </EuiText>
-          );
-        }
-
+      render: (detectors: DetectorListItem[], item: IndexInsightData) => {
+        const isExpanded = expandedRows.has(item.indexName);
+        const detectorsToShow = isExpanded ? detectors : detectors.slice(0, 3);
+        
         return (
           <EuiFlexGroup direction="column" gutterSize="xs">
-            <EuiFlexItem>
-              <EuiBadge color={getSeverityColor(lastAnomaly.severity)}>
-                {lastAnomaly.count} anomal{lastAnomaly.count === 1 ? 'y' : 'ies'}
-              </EuiBadge>
-            </EuiFlexItem>
-            <EuiFlexItem>
-              <EuiText size="xs" color="subdued">
-                {new Date(lastAnomaly.timestamp).toLocaleString()}
+            {detectors && detectors.length > 0 ? (
+              <>
+                {detectorsToShow.map((detector, i) => (
+                  <EuiFlexItem key={i}>
+                    <EuiFlexGroup alignItems="center" gutterSize="s">
+                      <EuiFlexItem grow={false}>
+                        <EuiHealth color={getStateColor(detector.curState || 'Unknown')}>
+                          {detector.curState || 'Unknown'}
+                        </EuiHealth>
+                      </EuiFlexItem>
+                      <EuiFlexItem>
+                        <EuiLink 
+                          href={`${PLUGIN_NAME}#/detectors/${detector.id}/results${dataSourceId ? `?dataSourceId=${dataSourceId}` : ''}`}
+                          size="s"
+                        >
+                          {detector.name}
+                        </EuiLink>
+                      </EuiFlexItem>
+                    </EuiFlexGroup>
+                  </EuiFlexItem>
+                ))}
+                {detectors.length > 3 && (
+                  <EuiFlexItem>
+                    <EuiLink 
+                      size="s" 
+                      color="subdued"
+                      onClick={() => toggleRowExpansion(item.indexName)}
+                    >
+                      {isExpanded 
+                        ? 'Show less' 
+                        : `+${detectors.length - 3} more detectors`
+                      }
+                    </EuiLink>
+                  </EuiFlexItem>
+                )}
+              </>
+            ) : (
+              <EuiText size="s" color="subdued">
+                No detectors created
               </EuiText>
-            </EuiFlexItem>
+            )}
           </EuiFlexGroup>
         );
       },
+    },
+    {
+      field: 'overallStatus',
+      name: 'Overall Status',
+      render: (status: string) => (
+        <EuiBadge color={getOverallStatusColor(status)}>
+          {status}
+        </EuiBadge>
+      ),
     },
     {
       name: 'Actions',
@@ -326,7 +404,12 @@ function IndicesManagementContent({ core }: { core: CoreStart }) {
               data-test-subj="addFirstIndexButton"
               fill
               iconType="plus"
-              onClick={() => history.push('/daily-insights/overview')}
+              onClick={() => {
+                const application = getApplication();
+                application.navigateToApp(DAILY_INSIGHTS_OVERVIEW_PAGE_NAV_ID, {
+                  path: dataSourceId ? `?dataSourceId=${dataSourceId}` : ''
+                });
+              }}
             >
               Add Your First Index
             </EuiSmallButton>

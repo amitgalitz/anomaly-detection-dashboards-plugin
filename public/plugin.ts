@@ -134,7 +134,7 @@ export class AnomalyDetectionOpenSearchDashboardsPlugin
     }
 
     if (dailyInsightsEnabled) {
-      // Daily Insights parent (redirects to overview by default)
+      // Daily Insights parent (for navigation grouping only)
       core.application.register({
         id: DAILY_INSIGHTS_FEATURE_NAME,
         title: 'Daily Insights',
@@ -145,9 +145,9 @@ export class AnomalyDetectionOpenSearchDashboardsPlugin
         },
         order: 5020,
         mount: async (params: AppMountParameters) => {
-          const { renderApp } = await import('./daily_insights_app');
-          const [coreStart] = await core.getStartServices();
-          return renderApp(coreStart, params, APP_PATH.DAILY_INSIGHTS_OVERVIEW);
+          // Redirect to overview by default
+          window.location.hash = `#/${APP_PATH.DAILY_INSIGHTS_OVERVIEW}`;
+          return () => {};
         },
       });
     }

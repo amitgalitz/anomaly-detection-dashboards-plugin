@@ -31,11 +31,16 @@ import {
   EuiToolTip,
 } from '@elastic/eui';
 import React, { useState, useEffect, useMemo, Fragment } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import ReactDOM from 'react-dom';
 import { RouteComponentProps } from 'react-router-dom';
 import queryString from 'querystring';
 import { CoreServicesContext } from '../../../components/CoreServices/CoreServices';
 import { AD_NODE_API } from '../../../../utils/constants';
+import { AppState } from '../../../redux/reducers';
+import { executeAutoCreateAgent } from '../../../redux/reducers/ml';
+import { getErrorMessage } from '../../../utils/utils';
+import { prettifyErrorMessage } from '../../../../server/utils/helpers';
 import { MDSStates } from '../../../models/interfaces';
 import { 
   getDataSourceFromURL,
@@ -53,7 +58,6 @@ import {
   getApplication,
   getUISettings,
 } from '../../../services';
-import { prettifyErrorMessage } from '../../../../server/utils/helpers';
 import { DAILY_INSIGHTS_ENABLED } from '../../../../utils/constants';
 import moment from 'moment';
 import { EnhancedSelectionModal } from '../components/EnhancedSelectionModal';
@@ -95,6 +99,9 @@ interface InsightsSchedule {
 
 export function DailyInsights(props: DailyInsightsProps) {
   const core = React.useContext(CoreServicesContext) as CoreStart;
+  const dispatch = useDispatch();
+  const mlState = useSelector((state: AppState) => state.ml);
+  
   const [isStarting, setIsStarting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -106,6 +113,7 @@ export function DailyInsights(props: DailyInsightsProps) {
   
   // Index selection for setup flow
   const [selectedIndicesForSetup, setSelectedIndicesForSetup] = useState<string[]>([]);
+
   const [isIndexSelectionModalVisible, setIsIndexSelectionModalVisible] = useState(false);
   
   const useUpdatedUX = getUISettings().get(USE_NEW_HOME_PAGE);
@@ -169,7 +177,6 @@ export function DailyInsights(props: DailyInsightsProps) {
 
   // Set breadcrumbs
   useEffect(() => {
-    console.log('Setting breadcrumbs in DailyInsights');
     core.chrome.setBreadcrumbs([BREADCRUMBS.DAILY_INSIGHTS]);
     // Set page title
     core.chrome.docTitle.change('Daily Insights');
@@ -266,51 +273,64 @@ export function DailyInsights(props: DailyInsightsProps) {
     }
   };
 
-  const handleStartInsights = async () => {
-    // If no indices selected, show selection modal first
+  const handleStartInsights = async (agentId?: string) => {
     if (selectedIndicesForSetup.length === 0) {
       setIsIndexSelectionModalVisible(true);
       return;
     }
 
     setIsStarting(true);
-    try {
-      // 1. Execute agent to create detectors for selected indices
-      // TODO: Add agent execution API call
-      // await core?.http.post(`..${AD_NODE_API.AGENT_EXECUTE}/${MDSInsightsState.selectedDataSourceId}`, {
-      //   body: JSON.stringify({ indices: selectedIndicesForSetup })
-      // });
-
-      // 2. Start insights job
-      const apiPath = MDSInsightsState.selectedDataSourceId
-        ? `${AD_NODE_API.INSIGHTS_START}/${MDSInsightsState.selectedDataSourceId}`
-        : AD_NODE_API.INSIGHTS_START;
-      
-      const frequencyString = '24h';
-      
-      const response = await core?.http.post(apiPath, {
-        body: JSON.stringify({ frequency: frequencyString })
-      });
-      
-      core?.notifications.toasts.addSuccess({
-        title: 'Insights job started successfully',
-        text: `Auto-created detectors for ${selectedIndicesForSetup.length} indices. ${response?.message || 'The insights generation job has been initiated.'}`,
-      });
-
-      setIsRefreshing(true);
-      
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      await fetchInsightsStatus();
-      
-      setIsRefreshing(false);
-    } catch (error: any) {
-      setIsRefreshing(false);
-      core?.notifications.toasts.addDanger({
-        title: 'Failed to start insights job',
-        text: error?.body?.message || error?.message || 'An error occurred while starting the insights job.',
-      });
-    } finally {
-      setIsStarting(false);
+    
+    if (agentId) {
+      // Step 1: Execute ML agent - following ReviewAndCreate pattern exactly
+      dispatch(
+        executeAutoCreateAgent(selectedIndicesForSetup, agentId, MDSInsightsState.selectedDataSourceId || '')
+      ).then((resp: any) => {
+          // Check if response indicates success
+          if (!resp || resp.error || !resp.response) {     
+            core?.notifications.toasts.addDanger(
+              'Failed to execute ML agent - API endpoint not available'
+            );
+            setIsStarting(false);
+            return;
+          }
+          const taskId = resp?.response?.task_id || resp?.task_id;
+          // Step 2: Start insights job after delay
+          setTimeout(async () => {
+            try {
+              const apiPath = MDSInsightsState.selectedDataSourceId
+                ? `${AD_NODE_API.INSIGHTS_START}/${MDSInsightsState.selectedDataSourceId}`
+                : AD_NODE_API.INSIGHTS_START;
+              
+              const insightsResponse = await core?.http.post(apiPath, {
+                body: JSON.stringify({ frequency: '24h' })
+              });
+              
+              core?.notifications.toasts.addSuccess({
+                title: 'Insights job started successfully',
+                text: `Auto-created detectors for ${selectedIndicesForSetup.length} indices.`,
+              });
+              
+              await fetchInsightsStatus();
+            } catch (error: any) {              
+              core?.notifications.toasts.addDanger(
+                prettifyErrorMessage(
+                  getErrorMessage(error, 'There was a problem starting the insights job')
+                )
+              );
+            } finally {
+              setIsStarting(false);
+            }
+          }, 3000);
+        })
+        .catch((err: any) => {          
+          core?.notifications.toasts.addDanger(
+            prettifyErrorMessage(
+              getErrorMessage(err, 'There was a problem executing the ML agent')
+            )
+          );
+          setIsStarting(false);
+        });
     }
   };
 
@@ -320,9 +340,7 @@ export function DailyInsights(props: DailyInsightsProps) {
       const apiPath = MDSInsightsState.selectedDataSourceId
         ? `${AD_NODE_API.INSIGHTS_STOP}/${MDSInsightsState.selectedDataSourceId}`
         : AD_NODE_API.INSIGHTS_STOP;
-      
       const response = await core?.http.post(apiPath);
-      
       core?.notifications.toasts.addSuccess({
         title: 'Insights job stopped successfully',
         text: response?.message || 'The insights job has been stopped.',
@@ -359,16 +377,20 @@ export function DailyInsights(props: DailyInsightsProps) {
       container.appendChild(buttonElement);
 
       const button = (
-        <EuiSmallButton
-          color={insightsEnabled ? 'danger' : 'success'}
-          onClick={insightsEnabled ? handleStopInsights : handleStartInsights}
-          isLoading={isStarting}
-          iconType={insightsEnabled ? 'stop' : 'play'}
-        >
-          {insightsEnabled ? 'Stop Insights Job' : 'Start Insights Job'}
-        </EuiSmallButton>
+        insightsEnabled ? (
+          <EuiSmallButton
+            color="danger"
+            onClick={handleStopInsights}
+            isLoading={isStarting}
+            iconType="stop"
+          >
+            Stop Insights Job
+          </EuiSmallButton>
+        ) : null
       );
-      (ReactDOM as any).render(button, buttonElement);
+      if (button) {
+        (ReactDOM as any).render(button, buttonElement);
+      }
       const unmountPicker = mountPoint(pickerElement);
 
       return () => {
@@ -630,31 +652,17 @@ export function DailyInsights(props: DailyInsightsProps) {
         </p>
       }
       actions={
-        selectedIndicesForSetup.length === 0 ? (
-          <EuiSmallButton
-            color="primary"
-            fill
-            iconType="plus"
-            onClick={() => {
-              console.log('Button clicked, opening modal');
-              setIsIndexSelectionModalVisible(true);
-            }}
-            data-test-subj="selectIndicesToMonitorButton"
-          >
-            Select Indices to Monitor
-          </EuiSmallButton>
-        ) : (
-          <EuiSmallButton
-            color="primary"
-            fill
-            iconType="play"
-            onClick={handleStartInsights}
-            isLoading={isStarting}
-            data-test-subj="startAutoInsightsButton"
-          >
-            Start Auto Insights for {selectedIndicesForSetup.length} Indices
-          </EuiSmallButton>
-        )
+        <EuiSmallButton
+          color="primary"
+          fill
+          iconType="plus"
+          onClick={() => {
+            setIsIndexSelectionModalVisible(true);
+          }}
+          data-test-subj="selectIndicesToMonitorButton"
+        >
+          Select Indices to Monitor
+        </EuiSmallButton>
       }
     />
   );
@@ -730,49 +738,6 @@ export function DailyInsights(props: DailyInsightsProps) {
           <EuiPanel hasBorder paddingSize="l" data-test-subj="dailyInsightsSetupPanel">
             {renderSetupView()}
             
-            {/* Selected indices panel - inside main panel */}
-            {selectedIndicesForSetup.length > 0 && (
-              <Fragment>
-                <EuiSpacer size="l" />
-                <EuiPanel color="success" paddingSize="m" data-test-subj="selectedIndicesPanel">
-                  <EuiText size="s" data-test-subj="selectedIndicesCount">
-                    <strong>{selectedIndicesForSetup.length} indices selected</strong>
-                  </EuiText>
-                  <EuiSpacer size="s" />
-                  <EuiFlexGroup wrap gutterSize="s" data-test-subj="selectedIndicesBadges">
-                    {selectedIndicesForSetup.map((index, i) => (
-                      <EuiFlexItem grow={false} key={i}>
-                        <EuiBadge color="success" iconType="indexManagementApp" data-test-subj={`selectedIndexBadge-${i}`}>
-                          {index}
-                        </EuiBadge>
-                      </EuiFlexItem>
-                    ))}
-                  </EuiFlexGroup>
-                  <EuiSpacer size="m" />
-                  <EuiFlexGroup justifyContent="spaceBetween" alignItems="center" data-test-subj="selectedIndicesActions">
-                    <EuiFlexItem grow={true}>
-                      <EuiText size="s" color="subdued" data-test-subj="readyToCreateMessage">
-                        Ready to create detectors and start insights for {selectedIndicesForSetup.length} indices
-                      </EuiText>
-                    </EuiFlexItem>
-                    <EuiFlexItem grow={false}>
-                      <EuiFlexGroup gutterSize="s">
-                        <EuiFlexItem grow={false}>
-                          <EuiSmallButton onClick={() => setIsIndexSelectionModalVisible(true)} data-test-subj="editSelectionButton">
-                            Edit Selection
-                          </EuiSmallButton>
-                        </EuiFlexItem>
-                        <EuiFlexItem grow={false}>
-                          <EuiSmallButton color="danger" onClick={() => setSelectedIndicesForSetup([])} data-test-subj="clearSelectionButton">
-                            Clear Selection
-                          </EuiSmallButton>
-                        </EuiFlexItem>
-                      </EuiFlexGroup>
-                    </EuiFlexItem>
-                  </EuiFlexGroup>
-                </EuiPanel>
-              </Fragment>
-            )}
           </EuiPanel>
         </div>
       )}
@@ -782,16 +747,19 @@ export function DailyInsights(props: DailyInsightsProps) {
         isVisible={isIndexSelectionModalVisible}
         selectedIndices={selectedIndicesForSetup}
         onSelectionChange={(indices) => {
-          console.log('Selection changed:', indices);
           setSelectedIndicesForSetup(indices);
         }}
         onCancel={() => {
-          console.log('Modal cancelled');
           setIsIndexSelectionModalVisible(false);
         }}
-        onConfirm={() => {
-          console.log('Modal confirmed');
-          setIsIndexSelectionModalVisible(false);
+        onConfirm={() => {}}
+        onStartInsights={async (indices, agentId) => {
+          setSelectedIndicesForSetup(indices);
+          try {
+            await handleStartInsights(agentId);
+            setIsIndexSelectionModalVisible(false);
+          } catch (error: any) {
+          }
         }}
         isLoading={isStarting}
       />

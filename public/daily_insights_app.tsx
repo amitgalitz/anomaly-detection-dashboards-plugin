@@ -18,9 +18,7 @@ import { Provider } from 'react-redux';
 import configureStore from './redux/configureStore';
 import { CoreServicesContext } from './components/CoreServices/CoreServices';
 
-export function renderApp(coreStart: CoreStart, params: AppMountParameters, landingPage?: string) {
-  console.log('daily_insights_app renderApp called with landingPage:', landingPage);
-  
+export function renderApp(coreStart: CoreStart, params: AppMountParameters, landingPage?: string) {  
   const http = coreStart.http;
   const store = configureStore(http);
 
