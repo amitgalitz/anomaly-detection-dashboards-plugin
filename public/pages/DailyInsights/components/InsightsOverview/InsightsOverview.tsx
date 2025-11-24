@@ -271,32 +271,6 @@ export function InsightsOverview({ onNavigateToIndicesManagement }: InsightsOver
     </>
   );
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'high':
-        return 'danger';
-      case 'medium':
-        return 'warning';
-      case 'low':
-        return 'success';
-      default:
-        return 'subdued';
-    }
-  };
-
-  const getSeverityIcon = (severity: string) => {
-    switch (severity) {
-      case 'high':
-        return 'alert';
-      case 'medium':
-        return 'warning';
-      case 'low':
-        return 'iInCircle';
-      default:
-        return 'questionInCircle';
-    }
-  };
-
   const renderStatsCards = () => (
     <EuiFlexGroup gutterSize="l">
       <EuiFlexItem>
@@ -334,86 +308,7 @@ export function InsightsOverview({ onNavigateToIndicesManagement }: InsightsOver
     </EuiFlexGroup>
   );
 
-  const renderInsightCard = (insight: InsightCard) => (
-    <EuiFlexItem key={insight.id}>
-      <EuiPanel paddingSize="m" hasShadow={false} hasBorder>
-        <EuiFlexGroup alignItems="flexStart" justifyContent="spaceBetween">
-          <EuiFlexItem>
-            <EuiFlexGroup alignItems="center" gutterSize="s">
-              <EuiFlexItem grow={false}>
-                <EuiIcon
-                  type={getSeverityIcon(insight.severity)}
-                  color={getSeverityColor(insight.severity)}
-                  size="m"
-                />
-              </EuiFlexItem>
-              <EuiFlexItem>
-                <EuiTitle size="xs">
-                  <h4>{insight.title}</h4>
-                </EuiTitle>
-              </EuiFlexItem>
-            </EuiFlexGroup>
-          </EuiFlexItem>
-          <EuiFlexItem grow={false}>
-            <EuiBadge color={getSeverityColor(insight.severity)}>
-              {insight.severity.toUpperCase()}
-            </EuiBadge>
-          </EuiFlexItem>
-        </EuiFlexGroup>
 
-        <EuiSpacer size="s" />
-
-        <EuiText size="s" color="subdued">
-          <p>{insight.description}</p>
-        </EuiText>
-
-        <EuiSpacer size="s" />
-
-        <EuiFlexGroup alignItems="center" justifyContent="spaceBetween">
-          <EuiFlexItem>
-            <EuiText size="xs">
-              <strong>Index:</strong> <EuiLink>{insight.indexPattern}</EuiLink>
-            </EuiText>
-          </EuiFlexItem>
-          <EuiFlexItem>
-            <EuiText size="xs">
-              <strong>Detector:</strong> <EuiLink>{insight.detectorName}</EuiLink>
-            </EuiText>
-          </EuiFlexItem>
-        </EuiFlexGroup>
-
-        <EuiSpacer size="xs" />
-
-        <EuiFlexGroup alignItems="center" justifyContent="spaceBetween">
-          <EuiFlexItem>
-            <EuiText size="xs" color="subdued">
-              {insight.anomalyCount} anomal{insight.anomalyCount === 1 ? 'y' : 'ies'} detected
-            </EuiText>
-          </EuiFlexItem>
-          <EuiFlexItem>
-            <EuiText size="xs" color="subdued">
-              Confidence: {Math.round(insight.confidence * 100)}%
-            </EuiText>
-          </EuiFlexItem>
-        </EuiFlexGroup>
-
-        <EuiHorizontalRule margin="s" />
-
-        <EuiFlexGroup alignItems="center" justifyContent="spaceBetween">
-          <EuiFlexItem>
-            <EuiText size="xs" color="subdued">
-              {new Date(insight.timestamp).toLocaleString()}
-            </EuiText>
-          </EuiFlexItem>
-          <EuiFlexItem grow={false}>
-            <EuiSmallButton size="s">
-              Investigate
-            </EuiSmallButton>
-          </EuiFlexItem>
-        </EuiFlexGroup>
-      </EuiPanel>
-    </EuiFlexItem>
-  );
 
   const renderRecentInsights = () => {
     if (recentInsights.length === 0) {
@@ -433,7 +328,7 @@ export function InsightsOverview({ onNavigateToIndicesManagement }: InsightsOver
 
     return (
       <EuiFlexGroup direction="column" gutterSize="m">
-        {recentInsights.map(renderInsightCard)}
+        {null}
       </EuiFlexGroup>
     );
   };
